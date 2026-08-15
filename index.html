@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#EEF1F5">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Strength Chain">
+<title>Strength Chain — NFL Power Rankings</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Teko:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#EEF1F5;
+    --panel:#FFFFFF;
+    --panel-2:#F3F5F9;
+    --line:#DDE2E9;
+    --text:#171B21;
+    --muted:#6B7280;
+    --base-cyan:#0E8F86;
+    --strength-amber:#B4650C;
+    --loss-red:#C4453D;
+    --tie-violet:#6455D6;
+    --btn-text:#FFFBF3;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 80px;}
+
+  /* Hero */
+  .hero{
+    padding:36px 0 28px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:28px;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--strength-amber);
+    margin-bottom:10px;
+  }
+  h1{
+    font-family:'Teko',sans-serif;
+    font-weight:600;
+    font-size:clamp(40px,7vw,64px);
+    line-height:.95;
+    margin:0 0 12px;
+    letter-spacing:.01em;
+  }
+  .thesis{
+    color:var(--muted);
+    font-size:16px;
+    max-width:560px;
+    line-height:1.55;
+  }
+  .thesis b{color:var(--text);font-weight:600;}
+
+  .formula-row{
+    display:flex;
+    gap:0;
+    margin-top:22px;
+    flex-wrap:wrap;
+    border:1px solid var(--line);
+    border-radius:10px;
+    overflow:hidden;
+    width:fit-content;
+  }
+  .formula-cell{
+    padding:10px 16px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    border-right:1px solid var(--line);
+    background:var(--panel);
+  }
+  .formula-cell:last-child{border-right:none;}
+  .formula-cell .k{color:var(--muted);display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;}
+  .formula-cell .v{color:var(--text);}
+  .formula-cell.win .v{color:var(--base-cyan);}
+  .formula-cell.strength .v{color:var(--strength-amber);}
+  .formula-cell.tie .v{color:var(--tie-violet);}
+
+  /* Layout */
+  .grid{display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start;}
+  @media (max-width:900px){.grid{grid-template-columns:1fr;}}
+
+  @media (max-width:520px){
+    .wrap{padding:16px 14px 60px;}
+    .panel{padding:16px;border-radius:12px;}
+    thead th{font-size:9.5px;padding:8px 6px;}
+    tbody td{padding:11px 6px;font-size:13px;}
+    .bar-cell{display:none;} /* split bar is decorative — drop it first on tight screens */
+    .team-code{display:none;} /* team name alone is enough on a phone */
+    .num.total{font-size:14px;}
+    .seed-row{grid-template-columns:28px 1fr 56px 64px;font-size:12px;}
+    .rh-table th, .rh-table td{padding:6px 7px;font-size:11.5px;}
+    .score-row{gap:6px;}
+    .formula-row{width:100%;}
+    .formula-cell{padding:8px 10px;font-size:11px;flex:1 1 auto;}
+  }
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:22px;
+    box-shadow:0 1px 2px rgba(23,27,33,.04), 0 8px 24px rgba(23,27,33,.03);
+  }
+  .panel + .panel{margin-top:20px;}
+  .panel-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    margin-bottom:16px;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .panel-title{
+    font-family:'Teko',sans-serif;
+    font-size:24px;
+    font-weight:600;
+    letter-spacing:.02em;
+  }
+  .panel-sub{font-size:12px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
+
+  /* Rankings table */
+  table{width:100%;border-collapse:collapse;}
+  #tableWrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  thead th{
+    text-align:left;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--muted);
+    padding:10px 10px;
+    border-bottom:1px solid var(--line);
+    cursor:pointer;
+    user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  thead th:hover{color:var(--text);}
+  thead th.active{color:var(--strength-amber);}
+  tbody td{
+    padding:13px 10px;
+    border-bottom:1px solid var(--line);
+    vertical-align:middle;
+    font-size:14px;
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--panel-2);}
+  .rank{
+    font-family:'IBM Plex Mono',monospace;
+    color:var(--muted);
+    font-size:13px;
+    width:28px;
+  }
+  .team-name{font-weight:600;}
+  .team-code{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    color:var(--muted);
+    display:block;
+    margin-top:1px;
+  }
+  .record{font-family:'IBM Plex Mono',monospace;color:var(--muted);font-size:13px;white-space:nowrap;}
+  .num{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;}
+  .num.base{color:var(--base-cyan);}
+  .num.strength{color:var(--strength-amber);}
+  .num.total{color:var(--text);font-weight:600;font-size:15px;}
+
+  .bar-cell{width:150px;}
+  .bar{
+    height:8px;
+    border-radius:4px;
+    background:var(--panel-2);
+    overflow:hidden;
+    display:flex;
+    position:relative;
+  }
+  .bar .seg-base{background:var(--base-cyan);height:100%;}
+  .bar .seg-strength{
+    background:repeating-linear-gradient(
+      135deg,
+      var(--strength-amber),
+      var(--strength-amber) 4px,
+      rgba(180,101,12,.6) 4px,
+      rgba(180,101,12,.6) 7px
+    );
+    height:100%;
+  }
+
+  .empty{
+    text-align:center;
+    color:var(--muted);
+    font-size:13px;
+    padding:30px 10px;
+  }
+
+  /* Form */
+  label{
+    display:block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin:14px 0 6px;
+  }
+  label:first-of-type{margin-top:0;}
+  select,input[type=number]{
+    width:100%;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:12px 12px;
+    border-radius:8px;
+    font-family:'Inter',sans-serif;
+    font-size:16px;
+    min-height:44px;
+  }
+  input[type=number]{ -webkit-appearance:none; appearance:none; }
+  select:focus,input:focus{outline:2px solid var(--strength-amber);outline-offset:1px;}
+
+  .result-toggle{display:flex;gap:8px;margin-top:6px;}
+  .result-toggle button{
+    flex:1;
+    padding:10px 6px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--muted);
+    border-radius:8px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    cursor:pointer;
+  }
+  .result-toggle button.sel{
+    border-color:var(--strength-amber);
+    color:var(--strength-amber);
+    background:rgba(180,101,12,.08);
+  }
+
+  .btn{
+    width:100%;
+    margin-top:18px;
+    padding:12px;
+    border-radius:8px;
+    border:none;
+    background:var(--strength-amber);
+    color:var(--btn-text);
+    font-weight:600;
+    font-size:15px;
+    cursor:pointer;
+    font-family:'Inter',sans-serif;
+    min-height:46px;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .btn:hover{filter:brightness(1.08);}
+  .btn:active{filter:brightness(0.95);transform:scale(0.99);}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn-ghost{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--muted);
+  }
+  .btn-ghost:hover{color:var(--text);border-color:var(--muted);}
+
+  .err{
+    color:var(--loss-red);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    margin-top:10px;
+    display:none;
+  }
+
+  /* Game log */
+  .log-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:9px 0;
+    border-bottom:1px solid var(--line);
+    font-size:13px;
+    gap:8px;
+  }
+  .log-item:last-child{border-bottom:none;}
+  .log-week{
+    font-family:'IBM Plex Mono',monospace;
+    color:var(--muted);
+    font-size:11px;
+    width:44px;
+    flex-shrink:0;
+  }
+  .log-match{flex:1;}
+  .log-match .win{color:var(--text);font-weight:600;}
+  .log-match .lose{color:var(--muted);}
+  .log-del{
+    background:none;
+    border:none;
+    color:var(--muted);
+    cursor:pointer;
+    font-size:20px;
+    line-height:1;
+    padding:10px;
+    min-width:40px;
+    min-height:40px;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .log-del:hover{color:var(--loss-red);}
+  .log-del:active{color:var(--loss-red);}
+
+  .footnote{
+    margin-top:26px;
+    color:var(--muted);
+    font-size:12px;
+    line-height:1.6;
+    border-top:1px solid var(--line);
+    padding-top:16px;
+  }
+  .footnote code{
+    font-family:'IBM Plex Mono',monospace;
+    background:var(--panel-2);
+    padding:1px 5px;
+    border-radius:4px;
+    color:var(--strength-amber);
+  }
+
+  /* Mode toggle */
+  .mode-btn{
+    flex-shrink:0;
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:var(--muted);
+    padding:10px 18px;
+    min-height:40px;
+    border-radius:20px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .mode-btn:hover{color:var(--text);border-color:var(--muted);}
+  .mode-btn:active{transform:scale(0.97);}
+  .mode-btn.active{
+    background:var(--text);
+    color:var(--bg);
+    border-color:var(--text);
+  }
+
+  /* Score inputs */
+  .score-row{display:flex;gap:10px;align-items:flex-end;}
+  .score-col{flex:1;}
+  .score-col label{margin:14px 0 6px;}
+  .score-vs{
+    font-family:'IBM Plex Mono',monospace;
+    color:var(--muted);
+    font-size:12px;
+    padding-bottom:11px;
+  }
+
+  /* Scoreboard (public view) */
+  .sb-week{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin:18px 0 8px;
+  }
+  .sb-week:first-child{margin-top:0;}
+  .sb-game{
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 14px;
+    margin-bottom:8px;
+  }
+  .sb-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-size:14px;
+    padding:3px 0;
+  }
+  .sb-team{display:flex;align-items:center;gap:8px;}
+  .sb-code{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    width:32px;
+  }
+  .sb-score{
+    font-family:'IBM Plex Mono',monospace;
+    font-variant-numeric:tabular-nums;
+    font-size:15px;
+  }
+  .sb-row.winner .sb-code, .sb-row.winner .sb-name{color:var(--text);font-weight:600;}
+  .sb-row.winner .sb-score{color:var(--strength-amber);font-weight:700;}
+  .sb-row.loser .sb-code, .sb-row.loser .sb-name, .sb-row.loser .sb-score{color:var(--muted);}
+  .sb-spread{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    color:var(--muted);
+    border-top:1px solid var(--line);
+    margin-top:8px;
+    padding-top:8px;
+  }
+
+  /* Preseason seeds table */
+  .seed-row{
+    display:grid;
+    grid-template-columns:32px 1fr 70px 80px;
+    align-items:center;
+    gap:8px;
+    padding:6px 0;
+    border-bottom:1px solid var(--line);
+    font-size:13px;
+  }
+  .seed-row:last-child{border-bottom:none;}
+  .seed-code{font-family:'IBM Plex Mono',monospace;color:var(--muted);font-size:11px;}
+  .seed-name{font-size:13px;}
+  .seed-val{
+    font-family:'IBM Plex Mono',monospace;
+    color:var(--muted);
+    font-size:12px;
+    text-align:right;
+  }
+  .seed-adj-input{
+    width:100%;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:5px 6px;
+    border-radius:6px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    text-align:right;
+  }
+
+  /* Rank history */
+  .rh-table{ border-collapse:collapse; white-space:nowrap; }
+  .rh-table th{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    color:var(--muted);
+    padding:6px 10px;
+    border-bottom:1px solid var(--line);
+    text-align:center;
+    position:sticky;
+    top:0;
+    background:var(--panel);
+  }
+  .rh-table th.rh-team-col{ text-align:left; position:sticky; left:0; background:var(--panel); z-index:2; }
+  .rh-table td{
+    padding:6px 10px;
+    text-align:center;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    border-bottom:1px solid var(--line);
+  }
+  .rh-table td.rh-team-cell{
+    text-align:left;
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:13px;
+    position:sticky;
+    left:0;
+    background:var(--panel);
+  }
+  .rh-table tr:hover td{ background:var(--panel-2); }
+  .rh-table tr:hover td.rh-team-cell{ background:var(--panel-2); }
+  .rh-up{ color:var(--base-cyan); }
+  .rh-down{ color:var(--loss-red); }
+  .rh-same{ color:var(--muted); }
+  .rh-arrow{ font-size:9px; margin-left:2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+      <div class="eyebrow">Strength Chain · Week-by-week power ratings</div>
+      <button class="mode-btn" id="modeBtn">Admin</button>
+    </div>
+    <h1>A win only counts<br>as much as who you beat.</h1>
+    <div class="thesis">
+      Every win is worth <b>2 base points</b>, plus a <b>strength bonus</b> equal to your
+      opponent's own rating at the time — and that bonus <b>updates every week</b> as their
+      rating changes. Beat a team that turns out to be good, and your win gets more valuable
+      after the fact.
+    </div>
+    <div class="formula-row">
+      <div class="formula-cell win"><span class="k">Win</span><span class="v">2 pts</span></div>
+      <div class="formula-cell tie"><span class="k">Tie</span><span class="v">1 pt</span></div>
+      <div class="formula-cell"><span class="k">Loss</span><span class="v" style="color:var(--muted)">0 pts</span></div>
+      <div class="formula-cell strength"><span class="k">Strength bonus</span><span class="v">+ opponent's current rating</span></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- Rankings -->
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Rankings</div>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div class="panel-sub" id="asOfWeek">No games entered yet</div>
+          <button class="btn" id="exportBtn" style="width:auto;margin:0;padding:10px 16px;font-size:13px;min-height:40px;">Export CSV</button>
+        </div>
+      </div>
+      <div id="tableWrap"></div>
+    </div>
+
+    <!-- Right column -->
+    <div>
+      <!-- Public: Upcoming spreads + Scoreboard -->
+      <div id="publicPanels">
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Upcoming Spreads</div>
+          </div>
+          <div id="upcomingWrap"><div class="empty">Loading...</div></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Scoreboard</div>
+            <div class="panel-sub" id="sbGameCount">0 games played</div>
+          </div>
+          <div id="scoreboardWrap"><div class="empty">No games played yet.</div></div>
+        </div>
+      </div>
+
+      <!-- Admin: entry + log -->
+      <div id="adminPanels" style="display:none;">
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Rating Settings</div>
+          </div>
+          <label for="homeAdvInput">Home field advantage (pts)</label>
+          <input type="number" id="homeAdvInput" min="0" step="0.5" value="2.5">
+          <div class="panel-sub" style="margin-top:8px;">
+            Spread = half the gap between the two teams' ranks, then this many points shift toward whichever team is home.
+          </div>
+
+          <label for="dampingInput">Recency damping (%)</label>
+          <input type="number" id="dampingInput" min="1" max="100" step="1" value="10">
+          <div class="panel-sub" style="margin-top:8px;">
+            How much of an opponent's rating counts toward your strength bonus. Without damping, ratings
+            compound out of control over a full season — 10% keeps numbers sane while still rewarding
+            wins over good teams. Lower = flatter, higher = more volatile.
+          </div>
+
+          <label for="carryoverInput">2025 carryover (%)</label>
+          <input type="number" id="carryoverInput" min="0" max="100" step="5" value="50">
+          <div class="panel-sub" style="margin-top:8px;">
+            How much of each team's final 2025 rating counts as their Week 1 2026 starting point.
+            0% = everyone starts at zero (Week 1 spreads become flat home-field-only). 100% = full carryover.
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Preseason Seeds</div>
+            <div class="panel-sub">2025 final rating + your adjustment</div>
+          </div>
+          <div id="seedsWrap"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Add Result</div>
+          </div>
+          <label for="week">Week</label>
+          <select id="week"></select>
+
+          <label for="matchup">Matchup</label>
+          <select id="matchup"></select>
+
+          <div class="score-row">
+            <div class="score-col">
+              <label id="awayScoreLabel">Away score</label>
+              <input type="number" id="awayScore" min="0" step="1" placeholder="0">
+            </div>
+            <div class="score-vs">@</div>
+            <div class="score-col">
+              <label id="homeScoreLabel">Home score</label>
+              <input type="number" id="homeScore" min="0" step="1" placeholder="0">
+            </div>
+          </div>
+
+          <div class="err" id="formErr">All Week games are already entered.</div>
+          <button class="btn" id="addBtn">Add game</button>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Game Log</div>
+            <div class="panel-sub" id="gameCount">0 games</div>
+          </div>
+          <div id="logWrap"><div class="empty">No games yet — add one above.</div></div>
+          <button class="btn btn-ghost" id="resetBtn" style="margin-top:16px;">Clear all data</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="rankHistoryPanel" style="margin-top:20px;">
+    <div class="panel-head">
+      <div class="panel-title">Rank History</div>
+      <div class="panel-sub">Momentum — is a team trending up or down?</div>
+    </div>
+    <div id="rankHistoryWrap" style="overflow-x:auto;"><div class="empty">Add game results to see rank history.</div></div>
+  </div>
+
+  <div class="footnote">
+    All 272 games of the 2026 regular season are pre-loaded — just pick a week, pick the matchup,
+    and enter the final score. Week 1 doesn't start everyone at zero: each team's rating is seeded
+    from their <code>final 2025 rating</code> (computed with this exact formula on the real 2025
+    season), scaled by the carryover % and your own offseason adjustment, both editable in Admin.
+    Ratings recompute from scratch each week using every opponent's rating as of the previous week,
+    with a <code>recency damping</code> factor to stop the numbers from compounding out of control
+    over a full season — without it, ratings blow up into the billions by Week 18. Margin of victory
+    doesn't affect the rating itself — only who won — but scores are stored so the scoreboard can show
+    real results. Spread formula: half the gap between the two teams' ranks, with the home team
+    getting a flat home-field bonus baked in, both tunable in Admin. This is a view toggle, not real
+    login security — anyone with the link and the PIN can reach Admin mode.
+  </div>
+
+</div>
+
+<script>
+const TEAMS = [
+  ["BUF","Buffalo Bills"],["MIA","Miami Dolphins"],["NE","New England Patriots"],["NYJ","New York Jets"],
+  ["BAL","Baltimore Ravens"],["CIN","Cincinnati Bengals"],["CLE","Cleveland Browns"],["PIT","Pittsburgh Steelers"],
+  ["HOU","Houston Texans"],["IND","Indianapolis Colts"],["JAX","Jacksonville Jaguars"],["TEN","Tennessee Titans"],
+  ["DEN","Denver Broncos"],["KC","Kansas City Chiefs"],["LV","Las Vegas Raiders"],["LAC","Los Angeles Chargers"],
+  ["DAL","Dallas Cowboys"],["NYG","New York Giants"],["PHI","Philadelphia Eagles"],["WAS","Washington Commanders"],
+  ["CHI","Chicago Bears"],["DET","Detroit Lions"],["GB","Green Bay Packers"],["MIN","Minnesota Vikings"],
+  ["ATL","Atlanta Falcons"],["CAR","Carolina Panthers"],["NO","New Orleans Saints"],["TB","Tampa Bay Buccaneers"],
+  ["ARI","Arizona Cardinals"],["LAR","Los Angeles Rams"],["SF","San Francisco 49ers"],["SEA","Seattle Seahawks"]
+];
+const TEAM_NAME = Object.fromEntries(TEAMS.map(([c,n])=>[c,n]));
+
+// Final 2025 season Strength Chain ratings, computed from the real, complete 2025
+// regular season (272 games) using this exact formula with 10% recency damping.
+// Used as the Week 1 2026 seed (scaled by "2025 carryover %").
+const SEED_RATINGS_2025 = {"BUF":60.22,"MIA":32.89,"NE":66.43,"NYJ":14.29,"BAL":39.97,"CIN":32.13,"CLE":25.55,"PIT":52.41,"HOU":63.56,"IND":37.76,"JAX":66.95,"TEN":11.85,"DEN":66.68,"KC":26.82,"LV":15.14,"LAC":54.84,"DAL":32.16,"NYG":22.48,"PHI":57.88,"WAS":24.69,"CHI":54.30,"DET":46.01,"GB":47.84,"MIN":45.49,"ATL":42.41,"CAR":44.11,"NO":27.43,"TB":46.26,"ARI":15.60,"LAR":68.19,"SF":62.26,"SEA":77.81};
+
+// Full 2026 regular-season schedule: [week, away, home] for all 272 games.
+const SCHEDULE = [
+  [1,"NE","SEA"],[1,"SF","LAR"],[1,"CHI","CAR"],[1,"TB","CIN"],[1,"BAL","IND"],[1,"NO","DET"],
+  [1,"BUF","HOU"],[1,"CLE","JAX"],[1,"NYJ","TEN"],[1,"ATL","PIT"],[1,"GB","MIN"],[1,"WAS","PHI"],
+  [1,"MIA","LV"],[1,"ARI","LAC"],[1,"DAL","NYG"],[1,"DEN","KC"],
+
+  [2,"DET","BUF"],[2,"CAR","ATL"],[2,"MIN","CHI"],[2,"CIN","HOU"],[2,"PIT","NE"],[2,"GB","NYJ"],
+  [2,"PHI","TEN"],[2,"NO","BAL"],[2,"CLE","TB"],[2,"JAX","DEN"],[2,"LV","LAC"],[2,"SEA","ARI"],
+  [2,"WAS","DAL"],[2,"MIA","SF"],[2,"IND","KC"],[2,"NYG","LAR"],
+
+  [3,"ATL","GB"],[3,"LAC","BUF"],[3,"CAR","CLE"],[3,"HOU","IND"],[3,"NYJ","DET"],[3,"NE","JAX"],
+  [3,"KC","MIA"],[3,"TEN","NYG"],[3,"CIN","PIT"],[3,"SEA","WAS"],[3,"ARI","SF"],[3,"MIN","TB"],
+  [3,"BAL","DAL"],[3,"LV","NO"],[3,"LAR","DEN"],[3,"PHI","CHI"],
+
+  [4,"PIT","CLE"],[4,"IND","WAS"],[4,"NE","BUF"],[4,"NYJ","CHI"],[4,"JAX","CIN"],[4,"DAL","HOU"],
+  [4,"ARI","NYG"],[4,"LAR","PHI"],[4,"TEN","BAL"],[4,"GB","TB"],[4,"MIA","MIN"],[4,"KC","LV"],
+  [4,"LAC","SEA"],[4,"DEN","SF"],[4,"DET","CAR"],[4,"ATL","NO"],
+
+  [5,"TB","DAL"],[5,"PHI","JAX"],[5,"CIN","MIA"],[5,"MIN","NO"],[5,"LV","NE"],[5,"CLE","NYJ"],
+  [5,"HOU","TEN"],[5,"IND","PIT"],[5,"NYG","WAS"],[5,"DEN","LAC"],[5,"DET","ARI"],[5,"CHI","GB"],
+  [5,"SF","SEA"],[5,"BAL","ATL"],[5,"BUF","LAR"],
+
+  [6,"SEA","DEN"],[6,"HOU","JAX"],[6,"CHI","ATL"],[6,"BAL","CLE"],[6,"TEN","IND"],[6,"NYJ","NE"],
+  [6,"NO","NYG"],[6,"CAR","PHI"],[6,"PIT","TB"],[6,"ARI","LAR"],[6,"LAC","KC"],[6,"BUF","LV"],
+  [6,"DAL","GB"],[6,"WAS","SF"],
+
+  [7,"NE","CHI"],[7,"PIT","NO"],[7,"SF","ATL"],[7,"TB","CAR"],[7,"NYG","HOU"],[7,"IND","MIN"],
+  [7,"MIA","NYJ"],[7,"CLE","TEN"],[7,"CIN","BAL"],[7,"DEN","ARI"],[7,"GB","DET"],[7,"LAR","LV"],
+  [7,"KC","SEA"],[7,"DAL","PHI"],
+
+  [8,"CAR","GB"],[8,"BAL","BUF"],[8,"TEN","CIN"],[8,"ARI","DAL"],[8,"MIN","DET"],[8,"IND","JAX"],
+  [8,"LV","NYJ"],[8,"CLE","PIT"],[8,"ATL","TB"],[8,"LAC","LAR"],[8,"KC","DEN"],[8,"NE","MIA"],
+  [8,"PHI","WAS"],[8,"CHI","SEA"],
+
+  [9,"JAX","BAL"],[9,"CIN","ATL"],[9,"DEN","CAR"],[9,"DAL","IND"],[9,"NYJ","KC"],[9,"DET","MIA"],
+  [9,"CLE","NO"],[9,"NYG","PHI"],[9,"LAR","WAS"],[9,"HOU","LAC"],[9,"LV","SF"],[9,"GB","NE"],
+  [9,"ARI","SEA"],[9,"TB","CHI"],[9,"BUF","MIN"],
+
+  [10,"WAS","NYG"],[10,"NE","DET"],[10,"KC","ATL"],[10,"HOU","CLE"],[10,"MIA","IND"],[10,"MIN","GB"],
+  [10,"CAR","NO"],[10,"BUF","NYJ"],[10,"JAX","TEN"],[10,"LAR","ARI"],[10,"SEA","LV"],[10,"SF","DAL"],
+  [10,"PIT","CIN"],[10,"LAC","BAL"],
+
+  [11,"IND","HOU"],[11,"MIA","BUF"],[11,"BAL","CAR"],[11,"NO","CHI"],[11,"TEN","DAL"],[11,"TB","DET"],
+  [11,"ARI","KC"],[11,"JAX","NYG"],[11,"NYJ","LAC"],[11,"LV","DEN"],[11,"PIT","PHI"],[11,"MIN","SF"],
+  [11,"CIN","WAS"],
+
+  [12,"GB","LAR"],[12,"CHI","DET"],[12,"PHI","DAL"],[12,"KC","BUF"],[12,"DEN","PIT"],[12,"NO","CIN"],
+  [12,"LV","CLE"],[12,"NYG","IND"],[12,"BAL","HOU"],[12,"NYJ","MIA"],[12,"ATL","MIN"],[12,"TEN","JAX"],
+  [12,"WAS","ARI"],[12,"SEA","SF"],[12,"NE","LAC"],[12,"CAR","TB"],
+
+  [13,"KC","LAR"],[13,"DET","ATL"],[13,"JAX","CHI"],[13,"CIN","CLE"],[13,"GB","NO"],[13,"SF","NYG"],
+  [13,"WAS","TEN"],[13,"LAC","TB"],[13,"PHI","ARI"],[13,"MIA","DEN"],[13,"CAR","MIN"],[13,"BUF","NE"],
+  [13,"HOU","PIT"],[13,"DAL","SEA"],
+
+  [14,"MIN","NE"],[14,"NO","CAR"],[14,"ATL","CLE"],[14,"TEN","DET"],[14,"CHI","MIA"],[14,"DEN","NYJ"],
+  [14,"IND","PHI"],[14,"TB","BAL"],[14,"HOU","WAS"],[14,"LAC","LV"],[14,"KC","CIN"],[14,"NYG","SEA"],
+  [14,"LAR","SF"],[14,"BUF","GB"],[14,"PIT","JAX"],
+
+  [15,"SF","LAC"],[15,"SEA","PHI"],[15,"CHI","BUF"],[15,"CIN","CAR"],[15,"MIA","GB"],[15,"JAX","HOU"],
+  [15,"CLE","NYG"],[15,"IND","TEN"],[15,"BAL","PIT"],[15,"NO","TB"],[15,"ATL","WAS"],[15,"NYJ","ARI"],
+  [15,"DEN","LV"],[15,"DAL","LAR"],[15,"DET","MIN"],[15,"NE","KC"],
+
+  [16,"HOU","PHI"],[16,"GB","CHI"],[16,"BUF","DEN"],[16,"LAR","SEA"],[16,"TB","ATL"],[16,"CIN","IND"],
+  [16,"LAC","MIA"],[16,"WAS","MIN"],[16,"ARI","NO"],[16,"NE","NYJ"],[16,"CAR","PIT"],[16,"CLE","BAL"],
+  [16,"TEN","LV"],[16,"SF","KC"],[16,"JAX","DAL"],[16,"NYG","DET"],
+
+  [17,"BAL","CIN"],[17,"NO","ATL"],[17,"SEA","CAR"],[17,"IND","CLE"],[17,"NYG","DAL"],[17,"WAS","JAX"],
+  [17,"BUF","MIA"],[17,"DEN","NE"],[17,"MIN","NYJ"],[17,"PIT","TEN"],[17,"KC","LAC"],[17,"LAR","TB"],
+  [17,"LV","ARI"],[17,"DET","CHI"],[17,"PHI","SF"],[17,"HOU","GB"],
+
+  [18,"NYJ","BUF"],[18,"ATL","CAR"],[18,"CLE","CIN"],[18,"JAX","IND"],[18,"SF","ARI"],[18,"LAC","DEN"],
+  [18,"DET","GB"],[18,"TEN","HOU"],[18,"LV","KC"],[18,"CHI","MIN"],[18,"TB","NO"],[18,"MIA","NE"],
+  [18,"PHI","NYG"],[18,"SEA","LAR"],[18,"PIT","BAL"],[18,"DAL","WAS"]
+];
+
+let games = [];
+let mode = 'public';
+let sortKey = 'total';
+let sortDir = -1;
+let ADMIN_SECRET = null; // only held in memory after a verified PIN entry — never hardcoded here
+
+const SUPABASE_URL = 'https://hubgdpaowrvzbjyvgzxm.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_asjorgsEN9-8KDG3PwvBpA_wyeoL7En';
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const weekSelect = document.getElementById('week');
+for(let w=1; w<=18; w++){
+  weekSelect.innerHTML += `<option value="${w}">Week ${w}</option>`;
+}
+
+const matchupSelect = document.getElementById('matchup');
+const awayScoreInput = document.getElementById('awayScore');
+const homeScoreInput = document.getElementById('homeScore');
+
+function scheduledGamesForWeek(w){
+  return SCHEDULE.filter(([sw])=>sw===w);
+}
+function alreadyEntered(w, away, home){
+  return games.some(g=>g.week===w && g.away===away && g.home===home);
+}
+
+function refreshMatchups(){
+  const w = parseInt(weekSelect.value, 10);
+  const remaining = scheduledGamesForWeek(w).filter(([,away,home])=>!alreadyEntered(w,away,home));
+  const addBtn = document.getElementById('addBtn');
+  const errEl = document.getElementById('formErr');
+  if(remaining.length === 0){
+    matchupSelect.innerHTML = `<option value="">No games left to add</option>`;
+    matchupSelect.disabled = true;
+    addBtn.disabled = true;
+    errEl.style.display = 'block';
+  } else {
+    matchupSelect.disabled = false;
+    addBtn.disabled = false;
+    errEl.style.display = 'none';
+    matchupSelect.innerHTML = remaining.map(([,away,home])=>
+      `<option value="${away}|${home}">${TEAM_NAME[away]} @ ${TEAM_NAME[home]}</option>`
+    ).join('');
+  }
+  refreshScoreLabels();
+}
+
+function refreshScoreLabels(){
+  if(!matchupSelect.value){
+    document.getElementById('awayScoreLabel').textContent = 'Away score';
+    document.getElementById('homeScoreLabel').textContent = 'Home score';
+    return;
+  }
+  const [away, home] = matchupSelect.value.split('|');
+  document.getElementById('awayScoreLabel').textContent = `${away} score`;
+  document.getElementById('homeScoreLabel').textContent = `${home} score`;
+}
+
+if(weekSelect) weekSelect.addEventListener('change', refreshMatchups);
+if(matchupSelect) matchupSelect.addEventListener('change', refreshScoreLabels);
+
+async function loadGames(){
+  try{
+    const {data, error} = await db.from('sc_games').select('*').order('week').order('id');
+    if(error) throw error;
+    games = (data || []).map(r => ({
+      id: r.id, week: r.week, away: r.away, home: r.home,
+      awayScore: r.away_score, homeScore: r.home_score
+    }));
+  }catch(e){
+    console.error('Load games error', e);
+    games = [];
+  }
+  refreshMatchups();
+  render();
+}
+
+async function loadSettings(){
+  try{
+    const {data, error} = await db.from('sc_settings').select('*');
+    if(error) throw error;
+    (data || []).forEach(row=>{
+      const val = parseFloat(row.value);
+      if(isNaN(val)) return;
+      if(row.key === 'home_adv' && val >= 0) HOME_ADV = val;
+      if(row.key === 'damping' && val >= 0 && val <= 1) DAMPING = val;
+      if(row.key === 'carryover_pct' && val >= 0 && val <= 100) CARRYOVER_PCT = val;
+    });
+  }catch(e){
+    console.error('Load settings error', e);
+  }
+
+  try{
+    const {data, error} = await db.from('sc_adjustments').select('*');
+    if(error) throw error;
+    ADJUSTMENTS = {};
+    (data || []).forEach(row=>{ ADJUSTMENTS[row.team_code] = row.adjustment; });
+  }catch(e){
+    console.error('Load adjustments error', e);
+    ADJUSTMENTS = {};
+  }
+
+  const homeAdvEl = document.getElementById('homeAdvInput');
+  if(homeAdvEl) homeAdvEl.value = HOME_ADV;
+  const dampingEl = document.getElementById('dampingInput');
+  if(dampingEl) dampingEl.value = Math.round(DAMPING*100);
+  const carryoverEl = document.getElementById('carryoverInput');
+  if(carryoverEl) carryoverEl.value = CARRYOVER_PCT;
+
+  renderSeedsTable();
+}
+
+async function saveHomeAdv(value){
+  try{
+    const {error} = await db.rpc('sc_set_setting', {p_secret: ADMIN_SECRET, p_key: 'home_adv', p_value: String(value)});
+    if(error) throw error;
+  }catch(e){ console.error('Save error', e); alert('Could not save — admin session may have expired.'); }
+}
+async function saveDamping(value){
+  try{
+    const {error} = await db.rpc('sc_set_setting', {p_secret: ADMIN_SECRET, p_key: 'damping', p_value: String(value)});
+    if(error) throw error;
+  }catch(e){ console.error('Save error', e); alert('Could not save — admin session may have expired.'); }
+}
+async function saveCarryover(value){
+  try{
+    const {error} = await db.rpc('sc_set_setting', {p_secret: ADMIN_SECRET, p_key: 'carryover_pct', p_value: String(value)});
+    if(error) throw error;
+  }catch(e){ console.error('Save error', e); alert('Could not save — admin session may have expired.'); }
+}
+async function saveAdjustment(code, value){
+  try{
+    const {error} = await db.rpc('sc_set_adjustment', {p_secret: ADMIN_SECRET, p_code: code, p_value: value});
+    if(error) throw error;
+  }catch(e){ console.error('Save error', e); alert('Could not save — admin session may have expired.'); }
+}
+
+const homeAdvInput = document.getElementById('homeAdvInput');
+if(homeAdvInput) homeAdvInput.addEventListener('change', async ()=>{
+  const val = parseFloat(homeAdvInput.value);
+  if(isNaN(val) || val < 0){
+    homeAdvInput.value = HOME_ADV;
+    return;
+  }
+  HOME_ADV = val;
+  await saveHomeAdv(val);
+  render();
+});
+
+const dampingInput = document.getElementById('dampingInput');
+if(dampingInput) dampingInput.addEventListener('change', async ()=>{
+  const val = parseFloat(dampingInput.value);
+  if(isNaN(val) || val < 1 || val > 100){
+    dampingInput.value = Math.round(DAMPING*100);
+    return;
+  }
+  DAMPING = val/100;
+  await saveDamping(DAMPING);
+  render();
+});
+
+const carryoverInput = document.getElementById('carryoverInput');
+if(carryoverInput) carryoverInput.addEventListener('change', async ()=>{
+  const val = parseFloat(carryoverInput.value);
+  if(isNaN(val) || val < 0 || val > 100){
+    carryoverInput.value = CARRYOVER_PCT;
+    return;
+  }
+  CARRYOVER_PCT = val;
+  await saveCarryover(val);
+  renderSeedsTable();
+  render();
+});
+
+function renderSeedsTable(){
+  const wrap = document.getElementById('seedsWrap');
+  if(!wrap) return;
+  const carryFrac = CARRYOVER_PCT / 100;
+  const rows = TEAMS.map(([code,name])=>{
+    const seeded = (SEED_RATINGS_2025[code]||0) * carryFrac;
+    const adj = ADJUSTMENTS[code] || 0;
+    return {code, name, seeded, adj};
+  }).sort((a,b)=> (b.seeded+b.adj) - (a.seeded+a.adj));
+
+  wrap.innerHTML = `
+    <div class="seed-row" style="border-bottom:1px solid var(--line); font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase;">
+      <div></div><div>Team</div><div style="text-align:right;">2025</div><div style="text-align:right;">Adj.</div>
+    </div>
+    ${rows.map(r=>`
+      <div class="seed-row">
+        <span class="seed-code">${r.code}</span>
+        <span class="seed-name">${r.name}</span>
+        <span class="seed-val">${r.seeded.toFixed(1)}</span>
+        <input class="seed-adj-input" type="number" step="1" data-code="${r.code}" value="${r.adj}">
+      </div>
+    `).join('')}
+  `;
+
+  wrap.querySelectorAll('.seed-adj-input').forEach(inp=>{
+    inp.addEventListener('change', async ()=>{
+      const code = inp.dataset.code;
+      const val = parseFloat(inp.value);
+      if(isNaN(val)){
+        inp.value = ADJUSTMENTS[code] || 0;
+        return;
+      }
+      if(val === 0){ delete ADJUSTMENTS[code]; }
+      else { ADJUSTMENTS[code] = val; }
+      await saveAdjustment(code, val);
+      renderSeedsTable();
+      render();
+    });
+  });
+}
+
+const addBtnEl = document.getElementById('addBtn');
+if(addBtnEl) addBtnEl.addEventListener('click', async ()=>{
+  if(!matchupSelect.value) return;
+  const aScore = parseInt(awayScoreInput.value, 10);
+  const hScore = parseInt(homeScoreInput.value, 10);
+  if(isNaN(aScore) || isNaN(hScore) || aScore < 0 || hScore < 0){
+    alert('Enter a valid score for both teams.');
+    return;
+  }
+  const week = parseInt(weekSelect.value, 10);
+  const [away, home] = matchupSelect.value.split('|');
+  addBtnEl.disabled = true;
+  try{
+    const {error} = await db.rpc('sc_add_game', {
+      p_secret: ADMIN_SECRET, p_week: week, p_away: away, p_home: home,
+      p_away_score: aScore, p_home_score: hScore
+    });
+    if(error) throw error;
+    awayScoreInput.value = '';
+    homeScoreInput.value = '';
+    await loadGames();
+  }catch(e){
+    console.error('Add game error', e);
+    alert('Could not save that result — admin session may have expired. Try re-entering Admin mode.');
+  }
+  addBtnEl.disabled = false;
+});
+
+const resetBtnEl = document.getElementById('resetBtn');
+if(resetBtnEl) resetBtnEl.addEventListener('click', async ()=>{
+  if(!confirm('Delete all entered games? This cannot be undone.')) return;
+  try{
+    const {error} = await db.rpc('sc_clear_games', {p_secret: ADMIN_SECRET});
+    if(error) throw error;
+    await loadGames();
+  }catch(e){
+    console.error('Clear games error', e);
+    alert('Could not clear games — admin session may have expired.');
+  }
+});
+
+async function deleteGame(id){
+  try{
+    const {error} = await db.rpc('sc_delete_game', {p_secret: ADMIN_SECRET, p_id: id});
+    if(error) throw error;
+    await loadGames();
+  }catch(e){
+    console.error('Delete game error', e);
+    alert('Could not delete that game — admin session may have expired.');
+  }
+}
+
+function resultOf(g){
+  if(g.awayScore > g.homeScore) return 'away';
+  if(g.awayScore < g.homeScore) return 'home';
+  return 'tie';
+}
+
+function getSeedTotals(){
+  const codes = TEAMS.map(([c])=>c);
+  const carryFrac = CARRYOVER_PCT / 100;
+  return Object.fromEntries(codes.map(c=>{
+    const seed = (SEED_RATINGS_2025[c] || 0) * carryFrac;
+    const adj = ADJUSTMENTS[c] || 0;
+    return [c, seed + adj];
+  }));
+}
+
+function computeStandings(gamesList){
+  const maxWeek = gamesList.reduce((m,g)=>Math.max(m,g.week), 0);
+  const codes = TEAMS.map(([c])=>c);
+  let prevTotal = getSeedTotals();
+  let snapshot = Object.fromEntries(codes.map(c=>[c,{base:0,strength:0,w:0,l:0,t:0,total:prevTotal[c]}]));
+  const weeklyTotals = [prevTotal]; // index w = totals AFTER week w (index 0 = preseason seed)
+
+  for(let w=1; w<=maxWeek; w++){
+    const cur = Object.fromEntries(codes.map(c=>[c,{base:0,strength:0,w:0,l:0,t:0,total:0}]));
+    const upToNow = gamesList.filter(g=>g.week <= w);
+    upToNow.forEach(g=>{
+      const A = cur[g.away], B = cur[g.home];
+      if(!A || !B) return;
+      const result = resultOf(g);
+      const oppRatingA = (prevTotal[g.home] || 0) * DAMPING;
+      const oppRatingB = (prevTotal[g.away] || 0) * DAMPING;
+      if(result === 'away'){
+        A.base += 2; A.strength += oppRatingA; A.w += 1;
+        B.l += 1;
+      } else if(result === 'home'){
+        B.base += 2; B.strength += oppRatingB; B.w += 1;
+        A.l += 1;
+      } else {
+        A.base += 1; A.strength += 0.5*oppRatingA; A.t += 1;
+        B.base += 1; B.strength += 0.5*oppRatingB; B.t += 1;
+      }
+    });
+    codes.forEach(c=>{ cur[c].total = cur[c].base + cur[c].strength; });
+    prevTotal = Object.fromEntries(codes.map(c=>[c, cur[c].total]));
+    weeklyTotals.push(prevTotal);
+    snapshot = cur;
+  }
+  return {maxWeek, snapshot, weeklyTotals};
+}
+
+let HOME_ADV = 2.5; // points of home-field advantage baked into the spread formula — editable in Admin
+let DAMPING = 0.10; // recency damping on strength bonus (0-1) — prevents ratings from compounding out of control
+let CARRYOVER_PCT = 50; // % of 2025 final rating carried into Week 1 2026
+let ADJUSTMENTS = {}; // per-team manual offseason adjustment, code -> points
+
+function getRankMap(totals){
+  const codes = TEAMS.map(([c])=>c);
+  const sorted = [...codes].sort((a,b)=>{
+    const diff = (totals[b]||0) - (totals[a]||0);
+    return diff !== 0 ? diff : a.localeCompare(b);
+  });
+  const ranks = {};
+  sorted.forEach((c,i)=>{ ranks[c] = i+1; });
+  return ranks;
+}
+
+// Higher-ranked (lower rank number) team is favored by half the rank gap;
+// home team gets a flat HOME_ADV bonus baked into that margin.
+function computeSpread(away, home, totals){
+  const ranks = getRankMap(totals);
+  const rankAway = ranks[away], rankHome = ranks[home];
+  const base = Math.abs(rankAway - rankHome) / 2;
+  const awayIsBetter = rankAway < rankHome;
+  let favorite, margin;
+  if(awayIsBetter){
+    margin = base - HOME_ADV;
+    favorite = margin >= 0 ? away : home;
+    margin = Math.abs(margin);
+  } else if(rankHome < rankAway){
+    margin = base + HOME_ADV;
+    favorite = home;
+  } else {
+    margin = HOME_ADV;
+    favorite = home;
+  }
+  return {favorite, margin};
+}
+
+function formatSpread(sp){
+  const m = sp.margin % 1 === 0 ? sp.margin.toFixed(0) : sp.margin.toFixed(1);
+  return `${sp.favorite} -${m}`;
+}
+
+function setMode(newMode){
+  mode = newMode;
+  const modeBtn = document.getElementById('modeBtn');
+  const publicPanels = document.getElementById('publicPanels');
+  const adminPanels = document.getElementById('adminPanels');
+  if(mode === 'admin'){
+    modeBtn.textContent = 'Exit Admin';
+    modeBtn.classList.add('active');
+    publicPanels.style.display = 'none';
+    adminPanels.style.display = 'block';
+  } else {
+    modeBtn.textContent = 'Admin';
+    modeBtn.classList.remove('active');
+    publicPanels.style.display = 'block';
+    adminPanels.style.display = 'none';
+  }
+}
+
+document.getElementById('modeBtn').addEventListener('click', async ()=>{
+  if(mode === 'admin'){
+    ADMIN_SECRET = null;
+    setMode('public');
+    return;
+  }
+  const pin = prompt('Enter admin PIN:');
+  if(pin === null) return;
+  const modeBtn = document.getElementById('modeBtn');
+  modeBtn.disabled = true;
+  try{
+    const {data, error} = await db.rpc('sc_verify_secret', {p_secret: pin});
+    if(error) throw error;
+    if(data === true){
+      ADMIN_SECRET = pin;
+      setMode('admin');
+    } else {
+      alert('Incorrect PIN.');
+    }
+  }catch(e){
+    console.error('Verify PIN error', e);
+    alert('Could not verify PIN — check your connection and try again.');
+  }
+  modeBtn.disabled = false;
+});
+
+function renderScoreboard(){
+  const wrap = document.getElementById('scoreboardWrap');
+  const countEl = document.getElementById('sbGameCount');
+  countEl.textContent = `${games.length} game${games.length===1?'':'s'} played`;
+  if(games.length === 0){
+    wrap.innerHTML = `<div class="empty">No games played yet.</div>`;
+    return;
+  }
+  const {weeklyTotals} = computeStandings(games);
+  const byWeek = {};
+  games.forEach(g=>{ (byWeek[g.week] = byWeek[g.week]||[]).push(g); });
+  const weeks = Object.keys(byWeek).map(Number).sort((a,b)=>b-a);
+
+  wrap.innerHTML = weeks.map(w=>{
+    const weekGames = [...byWeek[w]].sort((a,b)=>a.id-b.id);
+    const preGameTotals = weeklyTotals[w-1] || weeklyTotals[0];
+    const gamesHtml = weekGames.map(g=>{
+      const result = resultOf(g);
+      const awayCls = result==='away' ? 'winner' : result==='home' ? 'loser' : '';
+      const homeCls = result==='home' ? 'winner' : result==='away' ? 'loser' : '';
+      const spread = formatSpread(computeSpread(g.away, g.home, preGameTotals));
+      return `
+        <div class="sb-game">
+          <div class="sb-row ${awayCls}">
+            <div class="sb-team"><span class="sb-code">${g.away}</span><span class="sb-name">${TEAM_NAME[g.away]}</span></div>
+            <span class="sb-score">${g.awayScore}</span>
+          </div>
+          <div class="sb-row ${homeCls}">
+            <div class="sb-team"><span class="sb-code">${g.home}</span><span class="sb-name">${TEAM_NAME[g.home]}</span></div>
+            <span class="sb-score">${g.homeScore}</span>
+          </div>
+          <div class="sb-spread">Spread (pre-game): ${spread}</div>
+        </div>
+      `;
+    }).join('');
+    return `<div class="sb-week">Week ${w}</div>${gamesHtml}`;
+  }).join('');
+}
+
+function renderRankHistory(){
+  const panel = document.getElementById('rankHistoryPanel');
+  const wrap = document.getElementById('rankHistoryWrap');
+  if(!wrap || !panel) return;
+
+  const {maxWeek, weeklyTotals} = computeStandings(games);
+  if(maxWeek === 0){
+    wrap.innerHTML = `<div class="empty">Add game results to see rank history.</div>`;
+    return;
+  }
+
+  const seedRanks = getRankMap(SEED_RATINGS_2025);
+  const weekRanks = [];
+  for(let w=1; w<=maxWeek; w++){
+    weekRanks.push(getRankMap(weeklyTotals[w]));
+  }
+
+  const latestRanks = weekRanks[weekRanks.length-1];
+  const rows = TEAMS.map(([code,name])=>({code, name, latest:latestRanks[code]}))
+    .sort((a,b)=> a.latest - b.latest);
+
+  const arrowCell = (rank, prevRank)=>{
+    if(prevRank == null) return `<td>${rank}</td>`;
+    if(rank < prevRank) return `<td class="rh-up">${rank}<span class="rh-arrow">▲</span></td>`;
+    if(rank > prevRank) return `<td class="rh-down">${rank}<span class="rh-arrow">▼</span></td>`;
+    return `<td class="rh-same">${rank}<span class="rh-arrow">–</span></td>`;
+  };
+
+  const header = `
+    <tr>
+      <th class="rh-team-col">Team</th>
+      <th>2025</th>
+      ${Array.from({length:maxWeek}, (_,i)=>`<th>Wk ${i+1}</th>`).join('')}
+    </tr>
+  `;
+
+  const body = rows.map(r=>{
+    const cells = [];
+    let prev = seedRanks[r.code];
+    cells.push(`<td>${prev}</td>`); // 2025 column, no arrow (baseline)
+    for(let w=1; w<=maxWeek; w++){
+      const rank = weekRanks[w-1][r.code];
+      cells.push(arrowCell(rank, prev));
+      prev = rank;
+    }
+    return `<tr><td class="rh-team-cell">${r.code}</td>${cells.join('')}</tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<table class="rh-table"><thead>${header}</thead><tbody>${body}</tbody></table>`;
+}
+
+function renderUpcoming(){
+  const wrap = document.getElementById('upcomingWrap');
+  if(!wrap) return;
+  const {maxWeek, weeklyTotals} = computeStandings(games);
+  const latestTotals = weeklyTotals[weeklyTotals.length-1] || weeklyTotals[0];
+
+  let nextWeek = null;
+  for(let w=1; w<=18; w++){
+    const remaining = scheduledGamesForWeek(w).filter(([,away,home])=>!alreadyEntered(w,away,home));
+    if(remaining.length > 0){ nextWeek = {week:w, games:remaining}; break; }
+  }
+
+  if(!nextWeek){
+    wrap.innerHTML = `<div class="empty">All 272 games are in. Season's done!</div>`;
+    return;
+  }
+
+  wrap.innerHTML = `<div class="sb-week">Week ${nextWeek.week}</div>` + nextWeek.games.map(([,away,home])=>{
+    const spread = formatSpread(computeSpread(away, home, latestTotals));
+    return `
+      <div class="sb-game">
+        <div class="sb-row">
+          <div class="sb-team"><span class="sb-code">${away}</span><span class="sb-name">${TEAM_NAME[away]}</span></div>
+        </div>
+        <div class="sb-row">
+          <div class="sb-team"><span class="sb-code">${home}</span><span class="sb-name">${TEAM_NAME[home]}</span></div>
+        </div>
+        <div class="sb-spread">Projected spread: ${spread}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function render(){
+  const {maxWeek, snapshot} = computeStandings(games);
+  const asOf = document.getElementById('asOfWeek');
+  asOf.textContent = maxWeek === 0 ? 'No games entered yet' : `As of Week ${maxWeek}`;
+
+  const codes = TEAMS.map(([c])=>c);
+  const rows = codes.map(c=>({code:c, name:TEAM_NAME[c], ...snapshot[c]}));
+
+  rows.sort((r1,r2)=>{
+    if(sortKey==='name') return sortDir===1 ? r1.name.localeCompare(r2.name) : r2.name.localeCompare(r1.name);
+    return sortDir===1 ? r1[sortKey]-r2[sortKey] : r2[sortKey]-r1[sortKey];
+  });
+
+  const maxTotal = Math.max(1, ...rows.map(r=>r.total));
+
+  const tableWrap = document.getElementById('tableWrap');
+  if(games.length === 0){
+    tableWrap.innerHTML = `<div class="empty">Add results to see rankings. Every team starts at 0 until they play.</div>`;
+  } else {
+    const headCell = (key,label,align)=>`<th data-key="${key}" class="${sortKey===key?'active':''}" style="${align?'text-align:right':''}">${label}${sortKey===key ? (sortDir===1?' ▲':' ▼') : ''}</th>`;
+
+    tableWrap.innerHTML = `
+      <table>
+        <thead><tr>
+          <th></th>
+          ${headCell('name','Team')}
+          <th>Record</th>
+          ${headCell('base','Base',true)}
+          ${headCell('strength','Strength',true)}
+          ${headCell('total','Total',true)}
+          <th>Split</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map((r,i)=>`
+            <tr>
+              <td class="rank">${i+1}</td>
+              <td>
+                <span class="team-name">${r.name}</span>
+                <span class="team-code">${r.code}</span>
+              </td>
+              <td class="record">${r.w}-${r.l}${r.t?'-'+r.t:''}</td>
+              <td class="num base">${r.base.toFixed(1).replace(/\.0$/,'')}</td>
+              <td class="num strength">${r.strength.toFixed(1)}</td>
+              <td class="num total">${r.total.toFixed(1)}</td>
+              <td class="bar-cell">
+                <div class="bar">
+                  <div class="seg-base" style="width:${(r.base/ (maxTotal*1.05) *100).toFixed(1)}%"></div>
+                  <div class="seg-strength" style="width:${(r.strength/ (maxTotal*1.05) *100).toFixed(1)}%"></div>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+
+    document.querySelectorAll('#tableWrap thead th[data-key]').forEach(th=>{
+      th.addEventListener('click', ()=>{
+        const key = th.dataset.key;
+        if(sortKey === key){ sortDir *= -1; } else { sortKey = key; sortDir = -1; }
+        render();
+      });
+    });
+  }
+
+  renderScoreboard();
+  renderUpcoming();
+  renderRankHistory();
+  document.getElementById('rankHistoryPanel').style.display = games.length > 0 ? 'block' : 'none';
+
+  // Game log (admin)
+  const logWrap = document.getElementById('logWrap');
+  const gameCountEl = document.getElementById('gameCount');
+  if(gameCountEl) gameCountEl.textContent = `${games.length} game${games.length===1?'':'s'}`;
+  if(logWrap){
+    if(games.length === 0){
+      logWrap.innerHTML = `<div class="empty">No games yet — add one above.</div>`;
+    } else {
+      const sorted = [...games].sort((a,b)=> b.week - a.week || b.id - a.id);
+      logWrap.innerHTML = sorted.map(g=>{
+        const result = resultOf(g);
+        let matchHtml;
+        if(result==='away') matchHtml = `<span class="win">${g.away} ${g.awayScore}</span> @ ${g.home} ${g.homeScore}`;
+        else if(result==='home') matchHtml = `${g.away} ${g.awayScore} @ <span class="win">${g.home} ${g.homeScore}</span>`;
+        else matchHtml = `${g.away} ${g.awayScore} @ ${g.home} ${g.homeScore} (tie)`;
+        return `
+          <div class="log-item">
+            <span class="log-week">WK ${g.week}</span>
+            <span class="log-match">${matchHtml}</span>
+            <button class="log-del" data-id="${g.id}" title="Delete">×</button>
+          </div>
+        `;
+      }).join('');
+      logWrap.querySelectorAll('.log-del').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const match = games.find(g=>String(g.id)===btn.dataset.id);
+          if(match) deleteGame(match.id);
+        });
+      });
+    }
+  }
+}
+
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const {maxWeek, snapshot} = computeStandings(games);
+  if(maxWeek === 0){
+    alert('Add at least one game result before exporting.');
+    return;
+  }
+  const codes = TEAMS.map(([c])=>c);
+  const rows = codes.map(c=>({code:c, name:TEAM_NAME[c], ...snapshot[c]}));
+  rows.sort((r1,r2)=> r2.total - r1.total);
+
+  const header = ['Rank','Team','Code','Record','Base Points','Strength Points','Total Rating'];
+  const lines = [header.join(',')];
+  rows.forEach((r,i)=>{
+    const record = `${r.w}-${r.l}${r.t?'-'+r.t:''}`;
+    lines.push([i+1, `"${r.name}"`, r.code, record, r.base.toFixed(1), r.strength.toFixed(1), r.total.toFixed(1)].join(','));
+  });
+  const csv = lines.join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `nfl-strength-rankings-week-${maxWeek}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+setMode('public');
+loadSettings().then(loadGames);
+
+// Live sync: reload whenever anyone (admin, any device) changes the underlying data.
+db.channel('sc-live-sync')
+  .on('postgres_changes', {event:'*', schema:'public', table:'sc_games'}, ()=>{ loadGames(); })
+  .on('postgres_changes', {event:'*', schema:'public', table:'sc_settings'}, ()=>{ loadSettings(); })
+  .on('postgres_changes', {event:'*', schema:'public', table:'sc_adjustments'}, ()=>{ loadSettings(); })
+  .subscribe();
+</script>
+</body>
+</html>
