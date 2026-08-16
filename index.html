@@ -573,6 +573,19 @@
         <div class="formula-cell"><span class="k">Loss</span><span class="v" style="color:var(--muted)">0 pts</span></div>
         <div class="formula-cell strength"><span class="k">Strength bonus</span><span class="v">+ opponent's current rating</span></div>
       </div>
+      <div class="footnote" style="margin-top:24px;">
+        All 272 games of the 2026 regular season are pre-loaded — just pick a week, pick the matchup,
+        and enter the final score. Week 1 doesn't start everyone at zero: each team's rating is seeded
+        from their <code>final 2025 rating</code> (computed with this exact formula on the real 2025
+        season), scaled by the carryover % and your own offseason adjustment, both editable in Admin.
+        Ratings recompute from scratch each week using every opponent's rating as of the previous week,
+        with a <code>recency damping</code> factor to stop the numbers from compounding out of control
+        over a full season — without it, ratings blow up into the billions by Week 18. Margin of victory
+        doesn't affect the rating itself — only who won — but scores are stored so the scoreboard can show
+        real results. Spread formula: half the gap between the two teams' ranks, with the home team
+        getting a flat home-field bonus baked in, both tunable in Admin. This is a view toggle, not real
+        login security — anyone with the link and the PIN can reach Admin mode.
+      </div>
     </div>
   </div>
 
@@ -614,7 +627,7 @@
         <div class="panel-title">Rank History</div>
         <div class="panel-sub">Momentum — is a team trending up or down?</div>
       </div>
-      <div id="rankHistoryWrap" style="overflow-x:auto;"><div class="empty">Add game results to see rank history.</div></div>
+      <div id="rankHistoryWrap" style="overflow-x:auto;"><div class="empty">This fills in week by week once real 2026 results are entered — nothing to show until Week 1 games are played.</div></div>
     </div>
   </div>
 
@@ -693,20 +706,6 @@
       <div id="logWrap"><div class="empty">No games yet — add one above.</div></div>
       <button class="btn btn-ghost" id="resetBtn" style="margin-top:16px;">Clear all data</button>
     </div>
-  </div>
-
-  <div class="footnote">
-    All 272 games of the 2026 regular season are pre-loaded — just pick a week, pick the matchup,
-    and enter the final score. Week 1 doesn't start everyone at zero: each team's rating is seeded
-    from their <code>final 2025 rating</code> (computed with this exact formula on the real 2025
-    season), scaled by the carryover % and your own offseason adjustment, both editable in Admin.
-    Ratings recompute from scratch each week using every opponent's rating as of the previous week,
-    with a <code>recency damping</code> factor to stop the numbers from compounding out of control
-    over a full season — without it, ratings blow up into the billions by Week 18. Margin of victory
-    doesn't affect the rating itself — only who won — but scores are stored so the scoreboard can show
-    real results. Spread formula: half the gap between the two teams' ranks, with the home team
-    getting a flat home-field bonus baked in, both tunable in Admin. This is a view toggle, not real
-    login security — anyone with the link and the PIN can reach Admin mode.
   </div>
 
 </div>
@@ -1266,7 +1265,7 @@ function renderRankHistory(){
 
   const {maxWeek, weeklyTotals} = computeStandings(games);
   if(maxWeek === 0){
-    wrap.innerHTML = `<div class="empty">Add game results to see rank history.</div>`;
+    wrap.innerHTML = `<div class="empty">This fills in week by week once real 2026 results are entered — nothing to show until Week 1 games are played.</div>`;
     return;
   }
 
@@ -1327,15 +1326,16 @@ function renderUpcoming(){
     return;
   }
 
+  const ranks = getRankMap(latestTotals);
   wrap.innerHTML = `<div class="sb-week">Week ${nextWeek.week}</div>` + nextWeek.games.map(([,away,home])=>{
     const spread = formatSpread(computeSpread(away, home, latestTotals));
     return `
       <div class="sb-game">
         <div class="sb-row">
-          <div class="sb-team"><span class="sb-code">${away}</span><span class="sb-name">${TEAM_NAME[away]}</span></div>
+          <div class="sb-team"><span class="sb-code">${away}</span><span class="sb-name">${TEAM_NAME[away]} (${ranks[away]})</span></div>
         </div>
         <div class="sb-row">
-          <div class="sb-team"><span class="sb-code">${home}</span><span class="sb-name">${TEAM_NAME[home]}</span></div>
+          <div class="sb-team"><span class="sb-code">${home}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]})</span></div>
         </div>
         <div class="sb-spread">Projected spread: ${spread}</div>
       </div>
