@@ -7,8 +7,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Strength Chain">
-<title>Strength Chain — NFL Power Rankings</title>
+<meta name="apple-mobile-web-app-title" content="SOS">
+<title>SOS — Strength Chain NFL Power Rankings</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,10 +38,26 @@
   .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 80px;}
 
   /* Hero */
-  .hero{
-    padding:36px 0 28px;
+  .hero-thin{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:16px;
+    padding:16px 0;
     border-bottom:1px solid var(--line);
-    margin-bottom:28px;
+    margin-bottom:16px;
+  }
+  .hero-thin-name{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    font-weight:600;
+    letter-spacing:.06em;
+    color:var(--text);
+  }
+  .hero-thin-name span{
+    color:var(--muted);
+    font-weight:400;
+    letter-spacing:.02em;
   }
   .eyebrow{
     font-family:'IBM Plex Mono',monospace;
@@ -95,15 +111,12 @@
   /* Tabs */
   .tab-bar{
     display:flex;
-    gap:6px;
-    overflow-x:auto;
-    -webkit-overflow-scrolling:touch;
+    flex-wrap:wrap;
+    gap:4px;
     padding-bottom:2px;
     margin-bottom:20px;
     border-bottom:1px solid var(--line);
-    scrollbar-width:none;
   }
-  .tab-bar::-webkit-scrollbar{display:none;}
   .tab-btn{
     flex-shrink:0;
     background:none;
@@ -127,7 +140,7 @@
   .tab-panel{display:none;}
   .tab-panel.active{display:block;}
   @media (max-width:600px){
-    .tab-btn{padding:9px 11px;font-size:11px;}
+    .tab-btn{padding:9px 10px;font-size:10.5px;}
   }
 
   @media (max-width:520px){
@@ -527,24 +540,9 @@
 <body>
 <div class="wrap">
 
-  <div class="hero">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
-      <div class="eyebrow">Strength Chain · Week-by-week power ratings</div>
-      <button class="mode-btn" id="modeBtn">Admin</button>
-    </div>
-    <h1>A win only counts<br>as much as who you beat.</h1>
-    <div class="thesis">
-      Every win is worth <b>2 base points</b>, plus a <b>strength bonus</b> equal to your
-      opponent's own rating at the time — and that bonus <b>updates every week</b> as their
-      rating changes. Beat a team that turns out to be good, and your win gets more valuable
-      after the fact.
-    </div>
-    <div class="formula-row">
-      <div class="formula-cell win"><span class="k">Win</span><span class="v">2 pts</span></div>
-      <div class="formula-cell tie"><span class="k">Tie</span><span class="v">1 pt</span></div>
-      <div class="formula-cell"><span class="k">Loss</span><span class="v" style="color:var(--muted)">0 pts</span></div>
-      <div class="formula-cell strength"><span class="k">Strength bonus</span><span class="v">+ opponent's current rating</span></div>
-    </div>
+  <div class="hero-thin">
+    <div class="hero-thin-name">SOS <span>· NFL Power Ratings</span></div>
+    <button class="mode-btn" id="modeBtn">Admin</button>
   </div>
 
   <div class="tab-bar" id="tabBar">
@@ -552,10 +550,30 @@
     <button class="tab-btn" data-tab="spreads">Spreads</button>
     <button class="tab-btn" data-tab="scoreboard">Scoreboard</button>
     <button class="tab-btn" data-tab="history">History</button>
+    <button class="tab-btn" data-tab="about">About</button>
     <button class="tab-btn admin-tab" data-tab="addresult" style="display:none;">Add Result</button>
     <button class="tab-btn admin-tab" data-tab="settings" style="display:none;">Settings</button>
     <button class="tab-btn admin-tab" data-tab="seeds" style="display:none;">Seeds</button>
     <button class="tab-btn admin-tab" data-tab="log" style="display:none;">Log</button>
+  </div>
+
+  <div class="tab-panel" id="tab-about">
+    <div class="panel">
+      <div class="eyebrow">Strength Chain · Week-by-week power ratings</div>
+      <h1>A win only counts<br>as much as who you beat.</h1>
+      <div class="thesis">
+        Every win is worth <b>2 base points</b>, plus a <b>strength bonus</b> equal to your
+        opponent's own rating at the time — and that bonus <b>updates every week</b> as their
+        rating changes. Beat a team that turns out to be good, and your win gets more valuable
+        after the fact.
+      </div>
+      <div class="formula-row">
+        <div class="formula-cell win"><span class="k">Win</span><span class="v">2 pts</span></div>
+        <div class="formula-cell tie"><span class="k">Tie</span><span class="v">1 pt</span></div>
+        <div class="formula-cell"><span class="k">Loss</span><span class="v" style="color:var(--muted)">0 pts</span></div>
+        <div class="formula-cell strength"><span class="k">Strength bonus</span><span class="v">+ opponent's current rating</span></div>
+      </div>
+    </div>
   </div>
 
   <div class="tab-panel active" id="tab-rankings">
