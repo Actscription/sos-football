@@ -153,6 +153,7 @@
     .num.total{font-size:14px;}
     .seed-row{grid-template-columns:28px 1fr 56px 64px;font-size:12px;}
     .rh-table th, .rh-table td{padding:6px 7px;font-size:11.5px;}
+    .rh-scroll-btn{display:none;} /* buttons cost too much width on a phone; swipe/drag scroll still works */
     .score-row{gap:6px;}
     .formula-row{width:100%;}
     .formula-cell{padding:8px 10px;font-size:11px;flex:1 1 auto;}
@@ -531,6 +532,9 @@
     background:var(--panel);
   }
   .rh-table th.rh-team-col{ text-align:left; position:sticky; left:0; background:var(--panel); z-index:2; }
+  .rh-table th.rh-sortable{ cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .rh-table th.rh-sortable:hover{ color:var(--text); }
+  .rh-table th.rh-sortable.active{ color:var(--strength-amber); }
   .rh-table td{
     padding:6px 10px;
     text-align:center;
@@ -1282,6 +1286,8 @@ function renderScoreboard(){
   }).join('');
 }
 
+let rhSortCol = null; // null = sort by current/latest rank; otherwise index into the displayed columns
+
 function renderRankHistory(){
   const wrap = document.getElementById('rankHistoryWrap');
   if(!wrap) return;
@@ -1300,9 +1306,25 @@ function renderRankHistory(){
     weekRanks.push(getRankMap(weeklyTotals[18])); // ranking AFTER week 18 — the real final regular-season standing
   }
 
+  const totalCols = 18 + (hasFinal ? 1 : 0);
   const latestRanks = weekRanks[weekRanks.length-1];
+
+  // Sort by whichever column was clicked (rhSortCol), falling back to current/latest rank.
+  // Teams with no data yet for the clicked column (future week) sort to the bottom.
+  const sortKeyFor = (code)=>{
+    if(rhSortCol != null && rhSortCol < weekRanks.length){
+      return weekRanks[rhSortCol][code];
+    }
+    return latestRanks[code];
+  };
   const rows = TEAMS.map(([code,name])=>({code, name, latest:latestRanks[code]}))
-    .sort((a,b)=> a.latest - b.latest);
+    .sort((a,b)=>{
+      const ka = sortKeyFor(a.code), kb = sortKeyFor(b.code);
+      if(ka == null && kb == null) return a.latest - b.latest;
+      if(ka == null) return 1;
+      if(kb == null) return -1;
+      return ka - kb;
+    });
 
   const arrowCell = (rank, prevRank)=>{
     if(rank == null) return `<td class="rh-empty-cell">—</td>`;
@@ -1313,15 +1335,18 @@ function renderRankHistory(){
   };
 
   // Always show all 18 week columns, even before there's data for them — this is a full-season table.
+  const headCell = (i, label)=>{
+    const active = rhSortCol === i;
+    return `<th data-col="${i}" class="rh-sortable${active ? ' active' : ''}">${label}${active ? ' ▲' : ''}</th>`;
+  };
   const header = `
     <tr>
       <th class="rh-team-col">Team</th>
-      ${Array.from({length:18}, (_,i)=>`<th>Wk ${i+1}</th>`).join('')}
-      ${hasFinal ? '<th style="color:var(--strength-amber);">Final</th>' : ''}
+      ${Array.from({length:18}, (_,i)=>headCell(i, `Wk ${i+1}`)).join('')}
+      ${hasFinal ? headCell(18, 'Final') : ''}
     </tr>
   `;
 
-  const totalCols = 18 + (hasFinal ? 1 : 0);
   const body = rows.map(r=>{
     const cells = [];
     let prev = null;
@@ -1335,6 +1360,14 @@ function renderRankHistory(){
   }).join('');
 
   wrap.innerHTML = `<table class="rh-table"><thead>${header}</thead><tbody>${body}</tbody></table>`;
+
+  wrap.querySelectorAll('.rh-sortable').forEach(th=>{
+    th.addEventListener('click', ()=>{
+      const col = parseInt(th.dataset.col, 10);
+      rhSortCol = (rhSortCol === col) ? null : col; // click again to go back to current-rank order
+      renderRankHistory();
+    });
+  });
 }
 
 function renderUpcoming(){
