@@ -92,8 +92,43 @@
   .formula-cell.tie .v{color:var(--tie-violet);}
 
   /* Layout */
-  .grid{display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start;}
-  @media (max-width:900px){.grid{grid-template-columns:1fr;}}
+  /* Tabs */
+  .tab-bar{
+    display:flex;
+    gap:6px;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    padding-bottom:2px;
+    margin-bottom:20px;
+    border-bottom:1px solid var(--line);
+    scrollbar-width:none;
+  }
+  .tab-bar::-webkit-scrollbar{display:none;}
+  .tab-btn{
+    flex-shrink:0;
+    background:none;
+    border:none;
+    border-bottom:2px solid transparent;
+    color:var(--muted);
+    padding:10px 14px;
+    min-height:44px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    cursor:pointer;
+    white-space:nowrap;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .tab-btn:hover{color:var(--text);}
+  .tab-btn.active{color:var(--strength-amber);border-bottom-color:var(--strength-amber);}
+  .tab-btn.admin-tab{color:var(--strength-amber);opacity:.75;}
+  .tab-btn.admin-tab.active{opacity:1;}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+  @media (max-width:600px){
+    .tab-btn{padding:9px 11px;font-size:11px;}
+  }
 
   @media (max-width:520px){
     .wrap{padding:16px 14px 60px;}
@@ -512,8 +547,18 @@
     </div>
   </div>
 
-  <div class="grid">
-    <!-- Rankings -->
+  <div class="tab-bar" id="tabBar">
+    <button class="tab-btn active" data-tab="rankings">Rankings</button>
+    <button class="tab-btn" data-tab="spreads">Spreads</button>
+    <button class="tab-btn" data-tab="scoreboard">Scoreboard</button>
+    <button class="tab-btn" data-tab="history">History</button>
+    <button class="tab-btn admin-tab" data-tab="addresult" style="display:none;">Add Result</button>
+    <button class="tab-btn admin-tab" data-tab="settings" style="display:none;">Settings</button>
+    <button class="tab-btn admin-tab" data-tab="seeds" style="display:none;">Seeds</button>
+    <button class="tab-btn admin-tab" data-tab="log" style="display:none;">Log</button>
+  </div>
+
+  <div class="tab-panel active" id="tab-rankings">
     <div class="panel">
       <div class="panel-head">
         <div class="panel-title">Rankings</div>
@@ -524,107 +569,112 @@
       </div>
       <div id="tableWrap"></div>
     </div>
+  </div>
 
-    <!-- Right column -->
-    <div>
-      <!-- Public: Upcoming spreads + Scoreboard -->
-      <div id="publicPanels">
-        <div class="panel">
-          <div class="panel-head">
-            <div class="panel-title">Upcoming Spreads</div>
-          </div>
-          <div id="upcomingWrap"><div class="empty">Loading...</div></div>
+  <div class="tab-panel" id="tab-spreads">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Upcoming Spreads</div>
+      </div>
+      <div id="upcomingWrap"><div class="empty">Loading...</div></div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-scoreboard">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Scoreboard</div>
+        <div class="panel-sub" id="sbGameCount">0 games played</div>
+      </div>
+      <div id="scoreboardWrap"><div class="empty">No games played yet.</div></div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-history">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Rank History</div>
+        <div class="panel-sub">Momentum — is a team trending up or down?</div>
+      </div>
+      <div id="rankHistoryWrap" style="overflow-x:auto;"><div class="empty">Add game results to see rank history.</div></div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-addresult">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Add Result</div>
+      </div>
+      <label for="week">Week</label>
+      <select id="week"></select>
+
+      <label for="matchup">Matchup</label>
+      <select id="matchup"></select>
+
+      <div class="score-row">
+        <div class="score-col">
+          <label id="awayScoreLabel">Away score</label>
+          <input type="number" id="awayScore" min="0" step="1" placeholder="0">
         </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <div class="panel-title">Scoreboard</div>
-            <div class="panel-sub" id="sbGameCount">0 games played</div>
-          </div>
-          <div id="scoreboardWrap"><div class="empty">No games played yet.</div></div>
+        <div class="score-vs">@</div>
+        <div class="score-col">
+          <label id="homeScoreLabel">Home score</label>
+          <input type="number" id="homeScore" min="0" step="1" placeholder="0">
         </div>
       </div>
 
-      <!-- Admin: entry + log -->
-      <div id="adminPanels" style="display:none;">
-        <div class="panel">
-          <div class="panel-head">
-            <div class="panel-title">Rating Settings</div>
-          </div>
-          <label for="homeAdvInput">Home field advantage (pts)</label>
-          <input type="number" id="homeAdvInput" min="0" step="0.5" value="2.5">
-          <div class="panel-sub" style="margin-top:8px;">
-            Spread = half the gap between the two teams' ranks, then this many points shift toward whichever team is home.
-          </div>
+      <div class="err" id="formErr">All Week games are already entered.</div>
+      <button class="btn" id="addBtn">Add game</button>
+    </div>
+  </div>
 
-          <label for="dampingInput">Recency damping (%)</label>
-          <input type="number" id="dampingInput" min="1" max="100" step="1" value="10">
-          <div class="panel-sub" style="margin-top:8px;">
-            How much of an opponent's rating counts toward your strength bonus. Without damping, ratings
-            compound out of control over a full season — 10% keeps numbers sane while still rewarding
-            wins over good teams. Lower = flatter, higher = more volatile.
-          </div>
+  <div class="tab-panel" id="tab-settings">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Rating Settings</div>
+      </div>
+      <label for="homeAdvInput">Home field advantage (pts)</label>
+      <input type="number" id="homeAdvInput" min="0" step="0.5" value="2.5">
+      <div class="panel-sub" style="margin-top:8px;">
+        Spread = half the gap between the two teams' ranks, then this many points shift toward whichever team is home.
+      </div>
 
-          <label for="carryoverInput">2025 carryover (%)</label>
-          <input type="number" id="carryoverInput" min="0" max="100" step="5" value="50">
-          <div class="panel-sub" style="margin-top:8px;">
-            How much of each team's final 2025 rating counts as their Week 1 2026 starting point.
-            0% = everyone starts at zero (Week 1 spreads become flat home-field-only). 100% = full carryover.
-          </div>
-        </div>
+      <label for="dampingInput">Recency damping (%)</label>
+      <input type="number" id="dampingInput" min="1" max="100" step="1" value="10">
+      <div class="panel-sub" style="margin-top:8px;">
+        How much of an opponent's rating counts toward your strength bonus. Without damping, ratings
+        compound out of control over a full season — 10% keeps numbers sane while still rewarding
+        wins over good teams. Lower = flatter, higher = more volatile.
+      </div>
 
-        <div class="panel">
-          <div class="panel-head">
-            <div class="panel-title">Preseason Seeds</div>
-            <div class="panel-sub">2025 final rating + your adjustment</div>
-          </div>
-          <div id="seedsWrap"></div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <div class="panel-title">Add Result</div>
-          </div>
-          <label for="week">Week</label>
-          <select id="week"></select>
-
-          <label for="matchup">Matchup</label>
-          <select id="matchup"></select>
-
-          <div class="score-row">
-            <div class="score-col">
-              <label id="awayScoreLabel">Away score</label>
-              <input type="number" id="awayScore" min="0" step="1" placeholder="0">
-            </div>
-            <div class="score-vs">@</div>
-            <div class="score-col">
-              <label id="homeScoreLabel">Home score</label>
-              <input type="number" id="homeScore" min="0" step="1" placeholder="0">
-            </div>
-          </div>
-
-          <div class="err" id="formErr">All Week games are already entered.</div>
-          <button class="btn" id="addBtn">Add game</button>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <div class="panel-title">Game Log</div>
-            <div class="panel-sub" id="gameCount">0 games</div>
-          </div>
-          <div id="logWrap"><div class="empty">No games yet — add one above.</div></div>
-          <button class="btn btn-ghost" id="resetBtn" style="margin-top:16px;">Clear all data</button>
-        </div>
+      <label for="carryoverInput">2025 carryover (%)</label>
+      <input type="number" id="carryoverInput" min="0" max="100" step="5" value="50">
+      <div class="panel-sub" style="margin-top:8px;">
+        How much of each team's final 2025 rating counts as their Week 1 2026 starting point.
+        0% = everyone starts at zero (Week 1 spreads become flat home-field-only). 100% = full carryover.
       </div>
     </div>
   </div>
 
-  <div class="panel" id="rankHistoryPanel" style="margin-top:20px;">
-    <div class="panel-head">
-      <div class="panel-title">Rank History</div>
-      <div class="panel-sub">Momentum — is a team trending up or down?</div>
+  <div class="tab-panel" id="tab-seeds">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Preseason Seeds</div>
+        <div class="panel-sub">2025 final rating + your adjustment</div>
+      </div>
+      <div id="seedsWrap"></div>
     </div>
-    <div id="rankHistoryWrap" style="overflow-x:auto;"><div class="empty">Add game results to see rank history.</div></div>
+  </div>
+
+  <div class="tab-panel" id="tab-log">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Game Log</div>
+        <div class="panel-sub" id="gameCount">0 games</div>
+      </div>
+      <div id="logWrap"><div class="empty">No games yet — add one above.</div></div>
+      <button class="btn btn-ghost" id="resetBtn" style="margin-top:16px;">Clear all data</button>
+    </div>
   </div>
 
   <div class="footnote">
@@ -1097,21 +1147,33 @@ function formatSpread(sp){
   return `${sp.favorite} -${m}`;
 }
 
+let currentTab = 'rankings';
+
+function switchTab(name){
+  currentTab = name;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active', p.id === 'tab-' + name));
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> switchTab(btn.dataset.tab));
+});
+
 function setMode(newMode){
   mode = newMode;
   const modeBtn = document.getElementById('modeBtn');
-  const publicPanels = document.getElementById('publicPanels');
-  const adminPanels = document.getElementById('adminPanels');
+  const adminTabs = document.querySelectorAll('.admin-tab');
   if(mode === 'admin'){
     modeBtn.textContent = 'Exit Admin';
     modeBtn.classList.add('active');
-    publicPanels.style.display = 'none';
-    adminPanels.style.display = 'block';
+    adminTabs.forEach(t => t.style.display = 'inline-block');
   } else {
     modeBtn.textContent = 'Admin';
     modeBtn.classList.remove('active');
-    publicPanels.style.display = 'block';
-    adminPanels.style.display = 'none';
+    adminTabs.forEach(t => t.style.display = 'none');
+    if(['addresult','settings','seeds','log'].includes(currentTab)){
+      switchTab('rankings');
+    }
   }
 }
 
@@ -1181,9 +1243,8 @@ function renderScoreboard(){
 }
 
 function renderRankHistory(){
-  const panel = document.getElementById('rankHistoryPanel');
   const wrap = document.getElementById('rankHistoryWrap');
-  if(!wrap || !panel) return;
+  if(!wrap) return;
 
   const {maxWeek, weeklyTotals} = computeStandings(games);
   if(maxWeek === 0){
@@ -1332,7 +1393,6 @@ function render(){
   renderScoreboard();
   renderUpcoming();
   renderRankHistory();
-  document.getElementById('rankHistoryPanel').style.display = games.length > 0 ? 'block' : 'none';
 
   // Game log (admin)
   const logWrap = document.getElementById('logWrap');
