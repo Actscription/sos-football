@@ -466,6 +466,44 @@
     padding-top:8px;
   }
 
+  /* Pick UI */
+  .pick-option{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    margin-bottom:6px;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+    transition:background .1s, border-color .1s;
+  }
+  .pick-option:last-of-type{margin-bottom:0;}
+  .pick-option input[type=radio]{
+    appearance:none;
+    -webkit-appearance:none;
+    width:18px;
+    height:18px;
+    border:2px solid var(--muted);
+    border-radius:50%;
+    flex-shrink:0;
+    margin:0;
+    cursor:pointer;
+    position:relative;
+  }
+  .pick-option input[type=radio]:checked{
+    border-color:var(--strength-amber);
+    background:var(--strength-amber);
+    box-shadow:inset 0 0 0 3px var(--panel);
+  }
+  .pick-option:has(input:checked){
+    border-color:var(--strength-amber);
+    background:rgba(180,101,12,.06);
+  }
+  .pick-option .sb-code{width:32px;}
+  .pick-option .sb-name{font-size:14px;}
+
   /* Preseason seeds table */
   .seed-row{
     display:grid;
@@ -572,7 +610,7 @@
 
   <div class="tab-bar" id="tabBar">
     <button class="tab-btn active" data-tab="rankings">Rankings</button>
-    <button class="tab-btn" data-tab="spreads">Spreads</button>
+    <button class="tab-btn" data-tab="spreads">Picks</button>
     <button class="tab-btn" data-tab="scoreboard">Scoreboard</button>
     <button class="tab-btn" data-tab="about">About</button>
     <button class="tab-btn admin-tab" data-tab="addresult" style="display:none;">Add Result</button>
@@ -630,7 +668,8 @@
   <div class="tab-panel" id="tab-spreads">
     <div class="panel">
       <div class="panel-head">
-        <div class="panel-title">Upcoming Spreads</div>
+        <div class="panel-title">Picks</div>
+        <div class="panel-sub">Tap a team to pick the winner</div>
       </div>
       <div id="upcomingWrap"><div class="empty">Loading...</div></div>
     </div>
@@ -1358,6 +1397,20 @@ function renderRankHistory(){
   });
 }
 
+function loadPicks(){
+  try{
+    return JSON.parse(localStorage.getItem('sosPicks') || '{}');
+  }catch(e){
+    return {};
+  }
+}
+function savePick(gameKey, teamCode){
+  const picks = loadPicks();
+  picks[gameKey] = teamCode;
+  try{ localStorage.setItem('sosPicks', JSON.stringify(picks)); }
+  catch(e){ console.error('Could not save pick', e); }
+}
+
 function renderUpcoming(){
   const wrap = document.getElementById('upcomingWrap');
   if(!wrap) return;
@@ -1376,20 +1429,32 @@ function renderUpcoming(){
   }
 
   const ranks = getRankMap(latestTotals);
+  const picks = loadPicks();
   wrap.innerHTML = `<div class="sb-week">Week ${nextWeek.week}</div>` + nextWeek.games.map(([,away,home])=>{
     const spread = formatSpread(computeSpread(away, home, latestTotals));
+    const gameKey = `${nextWeek.week}-${away}-${home}`;
+    const picked = picks[gameKey];
+    const radioName = `pick-${gameKey}`;
     return `
       <div class="sb-game">
-        <div class="sb-row">
-          <div class="sb-team"><span class="sb-code">${away}</span><span class="sb-name">${TEAM_NAME[away]} (${ranks[away]})</span></div>
-        </div>
-        <div class="sb-row">
-          <div class="sb-team"><span class="sb-code">${home}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]})</span></div>
-        </div>
+        <label class="pick-option">
+          <input type="radio" name="${radioName}" value="${away}" data-gamekey="${gameKey}" ${picked===away?'checked':''}>
+          <span class="sb-code">${away}</span><span class="sb-name">${TEAM_NAME[away]} (${ranks[away]})</span>
+        </label>
+        <label class="pick-option">
+          <input type="radio" name="${radioName}" value="${home}" data-gamekey="${gameKey}" ${picked===home?'checked':''}>
+          <span class="sb-code">${home}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]})</span>
+        </label>
         <div class="sb-spread">Projected spread: ${spread}</div>
       </div>
     `;
   }).join('');
+
+  wrap.querySelectorAll('.pick-option input[type=radio]').forEach(input=>{
+    input.addEventListener('change', ()=>{
+      savePick(input.dataset.gamekey, input.value);
+    });
+  });
 }
 
 function render(){
