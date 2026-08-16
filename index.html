@@ -185,7 +185,6 @@
 
   /* Rankings table */
   table{width:100%;border-collapse:collapse;}
-  #tableWrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
   thead th{
     text-align:left;
     font-family:'IBM Plex Mono',monospace;
@@ -617,19 +616,8 @@
   <div class="tab-panel active" id="tab-rankings">
     <div class="panel">
       <div class="panel-head">
-        <div class="panel-title">Rankings</div>
-        <div style="display:flex;align-items:center;gap:14px;">
-          <div class="panel-sub" id="asOfWeek">No games entered yet</div>
-          <button class="btn" id="exportBtn" style="width:auto;margin:0;padding:10px 16px;font-size:13px;min-height:40px;">Export CSV</button>
-        </div>
-      </div>
-      <div id="tableWrap"></div>
-    </div>
-
-    <div class="panel" style="margin-top:20px;">
-      <div class="panel-head">
-        <div class="panel-title">Rank History</div>
-        <div class="panel-sub">Momentum — is a team trending up or down?</div>
+        <div class="panel-title">Rankings <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);text-transform:none;letter-spacing:normal;font-weight:400;">tap wk# to sort</span></div>
+        <div class="panel-sub" id="asOfWeek">Momentum — is a team trending up or down?</div>
       </div>
       <div class="rh-scroll-shell">
         <button class="rh-scroll-btn rh-scroll-left" id="rhScrollLeft" aria-label="Scroll left">‹</button>
@@ -1405,69 +1393,7 @@ function renderUpcoming(){
 }
 
 function render(){
-  const {maxWeek, snapshot} = computeStandings(games);
-  const asOf = document.getElementById('asOfWeek');
-  asOf.textContent = maxWeek === 0 ? 'No games entered yet' : `As of Week ${maxWeek}`;
-
-  const codes = TEAMS.map(([c])=>c);
-  const rows = codes.map(c=>({code:c, name:TEAM_NAME[c], ...snapshot[c]}));
-
-  rows.sort((r1,r2)=>{
-    if(sortKey==='name') return sortDir===1 ? r1.name.localeCompare(r2.name) : r2.name.localeCompare(r1.name);
-    return sortDir===1 ? r1[sortKey]-r2[sortKey] : r2[sortKey]-r1[sortKey];
-  });
-
-  const maxTotal = Math.max(1, ...rows.map(r=>r.total));
-
-  const tableWrap = document.getElementById('tableWrap');
-  if(games.length === 0){
-    tableWrap.innerHTML = `<div class="empty">Add results to see rankings. Every team starts at 0 until they play.</div>`;
-  } else {
-    const headCell = (key,label,align)=>`<th data-key="${key}" class="${sortKey===key?'active':''}" style="${align?'text-align:right':''}">${label}${sortKey===key ? (sortDir===1?' ▲':' ▼') : ''}</th>`;
-
-    tableWrap.innerHTML = `
-      <table>
-        <thead><tr>
-          <th></th>
-          ${headCell('name','Team')}
-          <th>Record</th>
-          ${headCell('base','Base',true)}
-          ${headCell('strength','Strength',true)}
-          ${headCell('total','Total',true)}
-          <th>Split</th>
-        </tr></thead>
-        <tbody>
-          ${rows.map((r,i)=>`
-            <tr>
-              <td class="rank">${i+1}</td>
-              <td>
-                <span class="team-name">${r.name}</span>
-                <span class="team-code">${r.code}</span>
-              </td>
-              <td class="record">${r.w}-${r.l}${r.t?'-'+r.t:''}</td>
-              <td class="num base">${r.base.toFixed(1).replace(/\.0$/,'')}</td>
-              <td class="num strength">${r.strength.toFixed(1)}</td>
-              <td class="num total">${r.total.toFixed(1)}</td>
-              <td class="bar-cell">
-                <div class="bar">
-                  <div class="seg-base" style="width:${(r.base/ (maxTotal*1.05) *100).toFixed(1)}%"></div>
-                  <div class="seg-strength" style="width:${(r.strength/ (maxTotal*1.05) *100).toFixed(1)}%"></div>
-                </div>
-              </td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `;
-
-    document.querySelectorAll('#tableWrap thead th[data-key]').forEach(th=>{
-      th.addEventListener('click', ()=>{
-        const key = th.dataset.key;
-        if(sortKey === key){ sortDir *= -1; } else { sortKey = key; sortDir = -1; }
-        render();
-      });
-    });
-  }
+  computeStandings(games);
 
   renderScoreboard();
   renderUpcoming();
@@ -1505,34 +1431,6 @@ function render(){
     }
   }
 }
-
-document.getElementById('exportBtn').addEventListener('click', ()=>{
-  const {maxWeek, snapshot} = computeStandings(games);
-  if(maxWeek === 0){
-    alert('Add at least one game result before exporting.');
-    return;
-  }
-  const codes = TEAMS.map(([c])=>c);
-  const rows = codes.map(c=>({code:c, name:TEAM_NAME[c], ...snapshot[c]}));
-  rows.sort((r1,r2)=> r2.total - r1.total);
-
-  const header = ['Rank','Team','Code','Record','Base Points','Strength Points','Total Rating'];
-  const lines = [header.join(',')];
-  rows.forEach((r,i)=>{
-    const record = `${r.w}-${r.l}${r.t?'-'+r.t:''}`;
-    lines.push([i+1, `"${r.name}"`, r.code, record, r.base.toFixed(1), r.strength.toFixed(1), r.total.toFixed(1)].join(','));
-  });
-  const csv = lines.join('\n');
-  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `nfl-strength-rankings-week-${maxWeek}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-});
 
 setMode('public');
 const rhScrollLeft = document.getElementById('rhScrollLeft');
