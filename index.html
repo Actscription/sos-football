@@ -435,6 +435,14 @@
     overflow:hidden;
     margin-bottom:8px;
   }
+  .sb-game-num{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--muted);
+    padding:7px 12px 0;
+  }
   .sb-row{
     display:flex;
     justify-content:space-between;
@@ -668,8 +676,11 @@
   <div class="tab-panel" id="tab-spreads">
     <div class="panel">
       <div class="panel-head">
-        <div class="panel-title">Picks</div>
-        <div class="panel-sub">Tap a team to pick the winner</div>
+        <div class="panel-title">Picks <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);text-transform:none;letter-spacing:normal;font-weight:400;">top team is at Home</span></div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="panel-sub">Tap a team to pick the winner</div>
+          <select id="picksWeekSelect" style="width:auto;min-height:36px;padding:6px 10px;font-size:12px;"></select>
+        </div>
       </div>
       <div id="upcomingWrap"><div class="empty">Loading...</div></div>
     </div>
@@ -1411,50 +1422,59 @@ function savePick(gameKey, teamCode){
   catch(e){ console.error('Could not save pick', e); }
 }
 
+let picksWeek = null; // selected week for the Picks tab; null = not yet auto-detected
+
 function renderUpcoming(){
   const wrap = document.getElementById('upcomingWrap');
   if(!wrap) return;
-  const {maxWeek, weeklyTotals} = computeStandings(games);
+  const {weeklyTotals} = computeStandings(games);
   const latestTotals = weeklyTotals[weeklyTotals.length-1] || weeklyTotals[0];
 
-  let nextWeek = null;
-  for(let w=1; w<=18; w++){
-    const remaining = scheduledGamesForWeek(w).filter(([,away,home])=>!alreadyEntered(w,away,home));
-    if(remaining.length > 0){ nextWeek = {week:w, games:remaining}; break; }
+  if(picksWeek == null){
+    picksWeek = 1;
+    for(let w=1; w<=18; w++){
+      const remaining = scheduledGamesForWeek(w).filter(([,away,home])=>!alreadyEntered(w,away,home));
+      if(remaining.length > 0){ picksWeek = w; break; }
+    }
+    const sel = document.getElementById('picksWeekSelect');
+    if(sel){
+      sel.innerHTML = Array.from({length:18}, (_,i)=>`<option value="${i+1}">Week ${i+1}</option>`).join('');
+      sel.value = picksWeek;
+    }
   }
 
-  if(!nextWeek){
-    wrap.innerHTML = `<div class="empty">All 272 games are in. Season's done!</div>`;
+  const weekGames = scheduledGamesForWeek(picksWeek);
+  if(weekGames.length === 0){
+    wrap.innerHTML = `<div class="empty">No games scheduled for Week ${picksWeek}.</div>`;
     return;
   }
 
   const ranks = getRankMap(latestTotals);
   const picks = loadPicks();
-  wrap.innerHTML = `<div class="sb-week">Week ${nextWeek.week}</div>` + nextWeek.games.map(([,away,home])=>{
+  wrap.innerHTML = weekGames.map(([,away,home], idx)=>{
     const sp = computeSpread(away, home, latestTotals);
-    const spread = formatSpread(sp);
     const isPush = sp.margin === 0;
     const marginText = sp.margin % 1 === 0 ? sp.margin.toFixed(0) : sp.margin.toFixed(1);
     const awayLine = isPush ? 'PK' : (sp.favorite === away ? `-${marginText}` : `+${marginText}`);
     const homeLine = isPush ? 'PK' : (sp.favorite === home ? `-${marginText}` : `+${marginText}`);
     const awayClass = isPush ? 'push' : (sp.favorite === away ? 'favorite' : '');
     const homeClass = isPush ? 'push' : (sp.favorite === home ? 'favorite' : '');
-    const gameKey = `${nextWeek.week}-${away}-${home}`;
+    const gameKey = `${picksWeek}-${away}-${home}`;
     const picked = picks[gameKey];
     const radioName = `pick-${gameKey}`;
     return `
       <div class="sb-game">
-        <label class="pick-option ${awayClass}">
-          <input type="radio" name="${radioName}" value="${away}" data-gamekey="${gameKey}" ${picked===away?'checked':''}>
-          <span class="sb-code">${away}</span><span class="sb-name">${TEAM_NAME[away]} (${ranks[away]})</span>
-          <span class="pick-line">${awayLine}</span>
-        </label>
+        <div class="sb-game-num">Game ${idx+1}</div>
         <label class="pick-option ${homeClass}">
           <input type="radio" name="${radioName}" value="${home}" data-gamekey="${gameKey}" ${picked===home?'checked':''}>
           <span class="sb-code">${home}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]})</span>
           <span class="pick-line">${homeLine}</span>
         </label>
-        <div class="sb-spread">Projected spread: ${spread}</div>
+        <label class="pick-option ${awayClass}">
+          <input type="radio" name="${radioName}" value="${away}" data-gamekey="${gameKey}" ${picked===away?'checked':''}>
+          <span class="sb-code">${away}</span><span class="sb-name">${TEAM_NAME[away]} (${ranks[away]})</span>
+          <span class="pick-line">${awayLine}</span>
+        </label>
       </div>
     `;
   }).join('');
@@ -1507,6 +1527,12 @@ function render(){
 }
 
 setMode('public');
+const picksWeekSelect = document.getElementById('picksWeekSelect');
+if(picksWeekSelect) picksWeekSelect.addEventListener('change', ()=>{
+  picksWeek = parseInt(picksWeekSelect.value, 10);
+  renderUpcoming();
+});
+
 const rhScrollLeft = document.getElementById('rhScrollLeft');
 const rhScrollRight = document.getElementById('rhScrollRight');
 if(rhScrollLeft) rhScrollLeft.addEventListener('click', ()=>{
