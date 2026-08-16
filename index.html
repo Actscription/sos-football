@@ -498,6 +498,24 @@
   }
 
   /* Rank history */
+  .rh-scroll-shell{ position:relative; display:flex; align-items:stretch; gap:0; }
+  .rh-scroll-btn{
+    flex-shrink:0;
+    width:32px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    font-size:20px;
+    line-height:1;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .rh-scroll-btn:hover{background:var(--line);}
+  .rh-scroll-btn:active{filter:brightness(0.95);}
+  .rh-scroll-left{border-radius:8px 0 0 8px;}
+  .rh-scroll-right{border-radius:0 8px 8px 0;}
+  .rh-scroll-shell #rankHistoryWrap{flex:1;min-width:0;}
+  .rh-empty-cell{color:var(--muted);text-align:center;}
   .rh-table{ border-collapse:collapse; white-space:nowrap; }
   .rh-table th{
     font-family:'IBM Plex Mono',monospace;
@@ -531,6 +549,10 @@
   }
   .rh-table tr:hover td{ background:var(--panel-2); }
   .rh-table tr:hover td.rh-team-cell{ background:var(--panel-2); }
+  .rh-row-even td{ background:#EAF7EC; }
+  .rh-row-even td.rh-team-cell{ background:#EAF7EC; }
+  .rh-row-even:hover td{ background:#D9EFDD; }
+  .rh-row-even:hover td.rh-team-cell{ background:#D9EFDD; }
   .rh-up{ color:var(--base-cyan); }
   .rh-down{ color:var(--loss-red); }
   .rh-same{ color:var(--muted); }
@@ -605,7 +627,11 @@
         <div class="panel-title">Rank History</div>
         <div class="panel-sub">Momentum — is a team trending up or down?</div>
       </div>
-      <div id="rankHistoryWrap" style="overflow-x:auto;"></div>
+      <div class="rh-scroll-shell">
+        <button class="rh-scroll-btn rh-scroll-left" id="rhScrollLeft" aria-label="Scroll left">‹</button>
+        <div id="rankHistoryWrap" style="overflow-x:auto;"></div>
+        <button class="rh-scroll-btn rh-scroll-right" id="rhScrollRight" aria-label="Scroll right">›</button>
+      </div>
     </div>
   </div>
 
@@ -1263,11 +1289,15 @@ function renderRankHistory(){
   const {maxWeek, weeklyTotals} = computeStandings(games);
   // Column w shows the ranking AS OF ENTERING week w — i.e. before week w's games.
   // weeklyTotals[0] = current/seed state (goes in the "Wk 1" column), weeklyTotals[1] = after Wk1 (goes in "Wk 2"), etc.
-  const numCols = Math.min(maxWeek + 1, 18);
+  const knownCols = Math.min(maxWeek + 1, 18); // how many week-columns actually have real data right now
+  const hasFinal = maxWeek >= 18; // full regular season entered — show the true post-Week-18 standing too
 
   const weekRanks = [];
-  for(let i=0; i<numCols; i++){
+  for(let i=0; i<knownCols; i++){
     weekRanks.push(getRankMap(weeklyTotals[i]));
+  }
+  if(hasFinal){
+    weekRanks.push(getRankMap(weeklyTotals[18])); // ranking AFTER week 18 — the real final regular-season standing
   }
 
   const latestRanks = weekRanks[weekRanks.length-1];
@@ -1275,28 +1305,33 @@ function renderRankHistory(){
     .sort((a,b)=> a.latest - b.latest);
 
   const arrowCell = (rank, prevRank)=>{
+    if(rank == null) return `<td class="rh-empty-cell">—</td>`;
     if(prevRank == null) return `<td>${rank}</td>`;
     if(rank < prevRank) return `<td class="rh-up">${rank}<span class="rh-arrow">▲</span></td>`;
     if(rank > prevRank) return `<td class="rh-down">${rank}<span class="rh-arrow">▼</span></td>`;
     return `<td class="rh-same">${rank}<span class="rh-arrow">–</span></td>`;
   };
 
+  // Always show all 18 week columns, even before there's data for them — this is a full-season table.
   const header = `
     <tr>
       <th class="rh-team-col">Team</th>
-      ${Array.from({length:numCols}, (_,i)=>`<th>Wk ${i+1}</th>`).join('')}
+      ${Array.from({length:18}, (_,i)=>`<th>Wk ${i+1}</th>`).join('')}
+      ${hasFinal ? '<th style="color:var(--strength-amber);">Final</th>' : ''}
     </tr>
   `;
 
+  const totalCols = 18 + (hasFinal ? 1 : 0);
   const body = rows.map(r=>{
     const cells = [];
     let prev = null;
-    for(let i=0; i<numCols; i++){
-      const rank = weekRanks[i][r.code];
+    for(let i=0; i<totalCols; i++){
+      const rank = i < weekRanks.length ? weekRanks[i][r.code] : null;
       cells.push(arrowCell(rank, prev));
-      prev = rank;
+      if(rank != null) prev = rank;
     }
-    return `<tr><td class="rh-team-cell">${r.code}</td>${cells.join('')}</tr>`;
+    const rowClass = r.latest % 2 === 0 ? ' class="rh-row-even"' : '';
+    return `<tr${rowClass}><td class="rh-team-cell">${r.code}</td>${cells.join('')}</tr>`;
   }).join('');
 
   wrap.innerHTML = `<table class="rh-table"><thead>${header}</thead><tbody>${body}</tbody></table>`;
@@ -1467,6 +1502,15 @@ document.getElementById('exportBtn').addEventListener('click', ()=>{
 });
 
 setMode('public');
+const rhScrollLeft = document.getElementById('rhScrollLeft');
+const rhScrollRight = document.getElementById('rhScrollRight');
+if(rhScrollLeft) rhScrollLeft.addEventListener('click', ()=>{
+  document.getElementById('rankHistoryWrap').scrollBy({left: -220, behavior:'smooth'});
+});
+if(rhScrollRight) rhScrollRight.addEventListener('click', ()=>{
+  document.getElementById('rankHistoryWrap').scrollBy({left: 220, behavior:'smooth'});
+});
+
 loadSettings().then(loadGames);
 
 // Live sync: reload whenever anyone (admin, any device) changes the underlying data.
