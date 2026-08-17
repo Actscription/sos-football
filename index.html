@@ -606,6 +606,49 @@
   .rh-down{ color:var(--loss-red); }
   .rh-same{ color:var(--muted); }
   .rh-arrow{ font-size:9px; margin-left:2px; }
+
+  /* Angles tab */
+  .angle-cat-head{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--strength-amber);
+    margin:20px 0 6px;
+  }
+  .angle-cat-head:first-child{margin-top:0;}
+  .angle-head-row{
+    display:grid;
+    grid-template-columns:1fr 110px 110px;
+    gap:8px;
+    padding:0 0 4px;
+  }
+  .angle-col-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9.5px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--muted);
+    text-align:right;
+  }
+  .angle-row{
+    display:grid;
+    grid-template-columns:1fr 110px 110px;
+    gap:8px;
+    align-items:center;
+    padding:8px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .angle-row:last-of-type{border-bottom:none;}
+  .angle-cond{font-size:13px;line-height:1.4;}
+  .angle-col{text-align:right;}
+  .angle-col .seed-val{font-size:14px;font-weight:600;color:var(--text);}
+  .angle-col .seed-adj-input{text-align:right;}
+  @media (max-width:520px){
+    .angle-head-row, .angle-row{grid-template-columns:1fr 76px 76px;font-size:12px;}
+    .angle-cond{font-size:12px;}
+    .angle-col-label{font-size:8.5px;}
+  }
 </style>
 </head>
 <body>
@@ -620,6 +663,7 @@
     <button class="tab-btn active" data-tab="rankings">Rankings</button>
     <button class="tab-btn" data-tab="spreads">Picks</button>
     <button class="tab-btn" data-tab="scoreboard">Scoreboard</button>
+    <button class="tab-btn" data-tab="angles">Angles</button>
     <button class="tab-btn" data-tab="about">About</button>
     <button class="tab-btn admin-tab" data-tab="addresult" style="display:none;">Add Result</button>
     <button class="tab-btn admin-tab" data-tab="settings" style="display:none;">Settings</button>
@@ -693,6 +737,31 @@
         <div class="panel-sub" id="sbGameCount">0 games played</div>
       </div>
       <div id="scoreboardWrap"><div class="empty">No games played yet.</div></div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-angles">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Angles</div>
+        <div class="panel-sub">Travel · Stadium/Surface · Schedule · Division</div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+        <div class="result-toggle" id="angleModeToggle" style="max-width:320px;">
+          <button data-mode="preset" class="sel">App Defaults</button>
+          <button data-mode="custom">My Angles</button>
+        </div>
+        <button class="btn btn-ghost" id="angleResetBtn" style="width:auto;margin-top:0;padding:10px 16px;">Reset My Angles</button>
+      </div>
+      <div class="panel-sub" style="margin-bottom:14px;line-height:1.6;">
+        <b style="color:var(--text);">App Defaults</b> are the shipped presets — admin-editable, shared with every visitor.
+        <b style="color:var(--text);">My Angles</b> is your own copy, starting as a match of the defaults — edit any value
+        and it's saved to this browser only. Use the toggle above to choose which column you're currently using.
+      </div>
+      <div class="angle-head-row">
+        <div></div><div class="angle-col-label">Default</div><div class="angle-col-label">Mine</div>
+      </div>
+      <div id="anglesWrap"></div>
     </div>
   </div>
 
@@ -1191,6 +1260,134 @@ let DAMPING = 0.10; // recency damping on strength bonus (0-1) — prevents rati
 let CARRYOVER_PCT = 50; // % of 2025 final rating carried into Week 1 2026
 let ADJUSTMENTS = {}; // per-team manual offseason adjustment, code -> points
 
+// Angle sheet: situational point adjustments, gamed out and reduced to the key
+// one-sided, verifiable factors (travel, stadium/surface incl. altitude, schedule, division).
+// Motivation, generic weather, market conditions, and personnel were deliberately cut — see chat.
+const ANGLE_DEFAULTS = [
+  {id:'T1', cat:'Travel', condition:'West Coast team traveling to East Coast', points:-2, weight:'High'},
+  {id:'T2', cat:'Travel', condition:'East Coast team traveling to West Coast', points:-1, weight:'High'},
+  {id:'T3', cat:'Travel', condition:'Central team traveling to East Coast', points:-1, weight:'High'},
+  {id:'T4', cat:'Travel', condition:'Mountain team traveling to East Coast', points:-1, weight:'High'},
+  {id:'T5', cat:'Travel', condition:'Central team traveling to West Coast', points:0, weight:'High'},
+  {id:'T6', cat:'Travel', condition:'Mountain team traveling to West Coast', points:0, weight:'High'},
+  {id:'S1', cat:'Stadium / Surface', condition:'Dome or warm-weather team into extreme cold or wind', points:-1, weight:'Medium'},
+  {id:'S2', cat:'Stadium / Surface', condition:'Dome team playing on grass', points:-1, weight:'Medium'},
+  {id:'S3', cat:'Stadium / Surface', condition:'Turf team playing on grass', points:-1, weight:'Medium'},
+  {id:'S4', cat:'Stadium / Surface', condition:'Sea-level team into high altitude (Denver)', points:-1, weight:'Medium'},
+  {id:'SC1', cat:'Schedule', condition:'West Coast team, early ET kickoff slot', points:-2, weight:'High'},
+  {id:'SC2', cat:'Schedule', condition:'West Coast team, late ET kickoff slot (SNF/MNF)', points:1, weight:'High'},
+  {id:'SC3', cat:'Schedule', condition:'Mountain team, early ET kickoff slot', points:-1, weight:'High'},
+  {id:'SC4', cat:'Schedule', condition:'Short week (Thursday game)', points:-1, weight:'High'},
+  {id:'SC5', cat:'Schedule', condition:'Extra rest / coming off bye', points:1, weight:'High'},
+  {id:'SC6', cat:'Schedule', condition:'Second straight road game', points:-1, weight:'Medium'},
+  {id:'SC7', cat:'Schedule', condition:'Third+ straight road game', points:-2, weight:'Medium'},
+  {id:'D1', cat:'Division', condition:'Division game', points:1, weight:'Low'},
+];
+const ANGLE_DEFAULT_MAP = Object.fromEntries(ANGLE_DEFAULTS.map(a=>[a.id, a.points]));
+
+let ANGLE_OVERRIDES = {}; // admin-edited "App Default" values, id -> points, loaded from sc_angles (shared)
+let USER_ANGLES = {};     // this browser's "My Angles" column, id -> points, loaded from localStorage (private)
+let ANGLE_MODE = 'preset'; // 'preset' or 'custom' — which column this browser is currently using; per-browser, localStorage
+
+function effectiveDefault(id){
+  return Object.prototype.hasOwnProperty.call(ANGLE_OVERRIDES, id) ? ANGLE_OVERRIDES[id] : ANGLE_DEFAULT_MAP[id];
+}
+
+function loadUserAngles(){
+  try{
+    const saved = JSON.parse(localStorage.getItem('sosUserAngles') || 'null');
+    if(saved && typeof saved === 'object') USER_ANGLES = saved;
+  }catch(e){ USER_ANGLES = {}; }
+  // Fill in any angle not yet touched by this browser with the current App Default,
+  // so an untouched row always tracks the default until the user actually edits it.
+  ANGLE_DEFAULTS.forEach(a=>{
+    if(!(a.id in USER_ANGLES)) USER_ANGLES[a.id] = effectiveDefault(a.id);
+  });
+  ANGLE_MODE = localStorage.getItem('sosAngleMode') || 'preset';
+}
+function saveUserAngles(){
+  try{ localStorage.setItem('sosUserAngles', JSON.stringify(USER_ANGLES)); }catch(e){ console.error('Could not save My Angles', e); }
+}
+function saveAngleMode(){
+  try{ localStorage.setItem('sosAngleMode', ANGLE_MODE); }catch(e){ console.error('Could not save angle mode', e); }
+}
+
+async function loadAngles(){
+  try{
+    const {data, error} = await db.from('sc_angles').select('*');
+    if(error) throw error;
+    ANGLE_OVERRIDES = {};
+    (data || []).forEach(row=>{
+      const val = parseFloat(row.points);
+      if(!isNaN(val)) ANGLE_OVERRIDES[row.id] = val;
+    });
+  }catch(e){
+    console.error('Load angles error', e);
+    ANGLE_OVERRIDES = {};
+  }
+  loadUserAngles();
+  renderAngles();
+}
+
+async function saveAngleDefault(id, value){
+  try{
+    const {error} = await db.rpc('sc_set_angle', {p_secret: ADMIN_SECRET, p_id: id, p_points: value});
+    if(error) throw error;
+    ANGLE_OVERRIDES[id] = value;
+  }catch(e){
+    console.error('Save angle error', e);
+    alert('Could not save — admin session may have expired.');
+  }
+}
+
+function renderAngles(){
+  const wrap = document.getElementById('anglesWrap');
+  if(!wrap) return;
+
+  const toggleEl = document.getElementById('angleModeToggle');
+  if(toggleEl){
+    toggleEl.querySelectorAll('button').forEach(b=>b.classList.toggle('sel', b.dataset.mode === ANGLE_MODE));
+  }
+
+  const cats = [];
+  ANGLE_DEFAULTS.forEach(a=>{ if(!cats.includes(a.cat)) cats.push(a.cat); });
+
+  wrap.innerHTML = cats.map(cat=>{
+    const rows = ANGLE_DEFAULTS.filter(a=>a.cat===cat).map(a=>{
+      const def = effectiveDefault(a.id);
+      const userVal = (a.id in USER_ANGLES) ? USER_ANGLES[a.id] : def;
+      const defCell = mode === 'admin'
+        ? `<input type="number" step="0.5" class="seed-adj-input angle-default-input" data-id="${a.id}" value="${def}">`
+        : `<span class="seed-val">${def > 0 ? '+' : ''}${def}</span>`;
+      return `
+        <div class="angle-row">
+          <div class="angle-cond">${a.condition}<span class="team-code">${a.weight} weight</span></div>
+          <div class="angle-col">${defCell}</div>
+          <div class="angle-col"><input type="number" step="0.5" class="seed-adj-input angle-user-input" data-id="${a.id}" value="${userVal}"></div>
+        </div>
+      `;
+    }).join('');
+    return `<div class="angle-cat-head">${cat}</div>${rows}`;
+  }).join('');
+
+  wrap.querySelectorAll('.angle-default-input').forEach(inp=>{
+    inp.addEventListener('change', async ()=>{
+      const val = parseFloat(inp.value);
+      if(isNaN(val)){ inp.value = effectiveDefault(inp.dataset.id); return; }
+      await saveAngleDefault(inp.dataset.id, val);
+      renderAngles();
+    });
+  });
+  wrap.querySelectorAll('.angle-user-input').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const val = parseFloat(inp.value);
+      if(isNaN(val)){ inp.value = USER_ANGLES[inp.dataset.id]; return; }
+      USER_ANGLES[inp.dataset.id] = val;
+      saveUserAngles();
+    });
+  });
+}
+
 function getRankMap(totals){
   const codes = TEAMS.map(([c])=>c);
   const sorted = [...codes].sort((a,b)=>{
@@ -1257,6 +1454,7 @@ function setMode(newMode){
       switchTab('rankings');
     }
   }
+  renderAngles();
 }
 
 document.getElementById('modeBtn').addEventListener('click', async ()=>{
@@ -1542,13 +1740,33 @@ if(rhScrollRight) rhScrollRight.addEventListener('click', ()=>{
   document.getElementById('rankHistoryWrap').scrollBy({left: 220, behavior:'smooth'});
 });
 
+const angleModeToggle = document.getElementById('angleModeToggle');
+if(angleModeToggle){
+  angleModeToggle.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      ANGLE_MODE = btn.dataset.mode;
+      saveAngleMode();
+      renderAngles();
+    });
+  });
+}
+const angleResetBtn = document.getElementById('angleResetBtn');
+if(angleResetBtn) angleResetBtn.addEventListener('click', ()=>{
+  if(!confirm('Reset "My Angles" back to the current App Defaults? This only affects your own browser.')) return;
+  ANGLE_DEFAULTS.forEach(a=>{ USER_ANGLES[a.id] = effectiveDefault(a.id); });
+  saveUserAngles();
+  renderAngles();
+});
+
 loadSettings().then(loadGames);
+loadAngles();
 
 // Live sync: reload whenever anyone (admin, any device) changes the underlying data.
 db.channel('sc-live-sync')
   .on('postgres_changes', {event:'*', schema:'public', table:'sc_games'}, ()=>{ loadGames(); })
   .on('postgres_changes', {event:'*', schema:'public', table:'sc_settings'}, ()=>{ loadSettings(); })
   .on('postgres_changes', {event:'*', schema:'public', table:'sc_adjustments'}, ()=>{ loadSettings(); })
+  .on('postgres_changes', {event:'*', schema:'public', table:'sc_angles'}, ()=>{ loadAngles(); })
   .subscribe();
 </script>
 </body>
