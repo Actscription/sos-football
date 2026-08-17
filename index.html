@@ -1925,16 +1925,22 @@ function renderUpcoming(){
       tbdHeader = `<div class="sb-week">Times TBD</div>`;
       tbdHeaderShown = true;
     }
-    const headerLine = kickoff
-      ? `Game ${gameNum} · ${kickoff.dateLabel} · ${kickoff.etStr}${kickoff.localStr ? ` · ${kickoff.localStr}` : ''} · ${kickoff.fieldType}`
+    const headerLine1 = kickoff
+      ? `Game ${gameNum}:  ${kickoff.dateLabel} · ${kickoff.etStr}`
       : `Game ${gameNum}`;
+    const headerLine2 = kickoff
+      ? (kickoff.localStr ? `${kickoff.fieldType}: ${kickoff.localStr}` : kickoff.fieldType)
+      : '';
     const fieldType = fieldTypeFor(home);
     const homeDiv = DIVISION_ABBR[TEAM_DIVISION[home]] || '';
     const awayDiv = DIVISION_ABBR[TEAM_DIVISION[away]] || '';
     return `
       ${tbdHeader}
       <div class="sb-game">
-        <div class="sb-game-header">${headerLine}</div>
+        <div class="sb-game-header">
+          <div>${headerLine1}</div>
+          ${headerLine2 ? `<div>${headerLine2}</div>` : ''}
+        </div>
         <label class="pick-option ${homeClass}">
           <input type="radio" name="${radioName}" value="${home}" data-gamekey="${gameKey}" ${picked===home?'checked':''}>
           <span class="sb-code">${home}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]}) <span class="sb-div">${homeDiv} · ${fieldType}</span></span>
