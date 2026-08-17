@@ -1931,7 +1931,8 @@ function renderUpcoming(){
     const headerLine2 = kickoff
       ? (kickoff.localStr ? `${kickoff.fieldType}: ${kickoff.localStr}` : kickoff.fieldType)
       : '';
-    const fieldType = fieldTypeFor(home);
+    const homeFieldType = fieldTypeFor(home); // this game's venue — the home team's own field
+    const awayFieldType = fieldTypeFor(away); // the away team's own home field, for reference
     const homeDiv = DIVISION_ABBR[TEAM_DIVISION[home]] || '';
     const awayDiv = DIVISION_ABBR[TEAM_DIVISION[away]] || '';
     return `
@@ -1943,12 +1944,12 @@ function renderUpcoming(){
         </div>
         <label class="pick-option ${homeClass}">
           <input type="radio" name="${radioName}" value="${home}" data-gamekey="${gameKey}" ${picked===home?'checked':''}>
-          <span class="sb-code">${home}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]}) <span class="sb-div">${homeDiv} · ${fieldType}</span></span>
+          <span class="sb-code">${home}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]}) <span class="sb-div">${homeDiv} · ${homeFieldType}</span></span>
           <span class="pick-line">${homeLine}</span>
         </label>
         <label class="pick-option ${awayClass}">
           <input type="radio" name="${radioName}" value="${away}" data-gamekey="${gameKey}" ${picked===away?'checked':''}>
-          <span class="sb-code">${away}</span><span class="sb-name">${TEAM_NAME[away]} (${ranks[away]}) <span class="sb-div">${awayDiv} · ${fieldType}</span></span>
+          <span class="sb-code">${away}</span><span class="sb-name">${TEAM_NAME[away]} (${ranks[away]}) <span class="sb-div">${awayDiv} · ${awayFieldType}</span></span>
           <span class="pick-line">${awayLine}</span>
         </label>
       </div>
