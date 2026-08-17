@@ -499,7 +499,7 @@
     transition:background .1s;
     border-bottom:1px solid var(--line);
   }
-  .pick-option.favorite{ background:#E3F6E8; }
+  .pick-option.home-row{ background:#E3F6E8; }
   .pick-option.push{ background:#FDF6DC; }
   .pick-line{
     margin-left:auto;
@@ -739,6 +739,10 @@
           <div class="panel-sub">Tap a team to pick the winner</div>
           <select id="picksWeekSelect" style="width:auto;min-height:36px;padding:6px 10px;font-size:12px;"></select>
         </div>
+      </div>
+      <div class="panel-sub" style="margin-bottom:14px;line-height:1.7;">
+        <span style="color:var(--text);background:#E3F6E8;padding:1px 6px;border-radius:4px;">Green</span> = home team ·
+        AFCE/AFCN/AFCS/AFCW = AFC East/North/South/West · NFCE/NFCN/NFCS/NFCW = NFC East/North/South/West
       </div>
       <div id="upcomingWrap"><div class="empty">Loading...</div></div>
     </div>
@@ -1003,7 +1007,7 @@ function formatKickoff(week, away, home){
   let localStr = null;
   if(offset !== 0){
     let localHH = (hh + offset + 24) % 24;
-    localStr = `${fmtTime(localHH, mm)} Local`;
+    localStr = `${fmtTime(localHH, mm)} ${home}`;
   }
   return {dateLabel, etStr, localStr, fieldType: fieldTypeFor(home)};
 }
@@ -1782,8 +1786,10 @@ function renderUpcoming(){
     const marginText = sp.margin % 1 === 0 ? sp.margin.toFixed(0) : sp.margin.toFixed(1);
     const awayLine = isPush ? 'PK' : (sp.favorite === away ? `-${marginText}` : `+${marginText}`);
     const homeLine = isPush ? 'PK' : (sp.favorite === home ? `-${marginText}` : `+${marginText}`);
-    const awayClass = isPush ? 'push' : (sp.favorite === away ? 'favorite' : '');
-    const homeClass = isPush ? 'push' : (sp.favorite === home ? 'favorite' : '');
+    // Green always marks the home team (not the favorite) — the favorite/underdog is read from
+    // the +/- line instead, so the two concepts don't visually collide.
+    const homeClass = isPush ? 'push' : 'home-row';
+    const awayClass = isPush ? 'push' : '';
     const gameKey = `${picksWeek}-${away}-${home}`;
     const picked = picks[gameKey];
     const radioName = `pick-${gameKey}`;
@@ -1796,6 +1802,7 @@ function renderUpcoming(){
     const headerLine = kickoff
       ? `Game ${gameNum} · ${kickoff.dateLabel} · ${kickoff.etStr}${kickoff.localStr ? ` · ${kickoff.localStr}` : ''} · ${kickoff.fieldType}`
       : `Game ${gameNum}`;
+    const fieldType = fieldTypeFor(home);
     const homeDiv = DIVISION_ABBR[TEAM_DIVISION[home]] || '';
     const awayDiv = DIVISION_ABBR[TEAM_DIVISION[away]] || '';
     return `
@@ -1804,12 +1811,12 @@ function renderUpcoming(){
         <div class="sb-game-header">${headerLine}</div>
         <label class="pick-option ${homeClass}">
           <input type="radio" name="${radioName}" value="${home}" data-gamekey="${gameKey}" ${picked===home?'checked':''}>
-          <span class="sb-code">${home}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]}) <span class="sb-div">${homeDiv}</span></span>
+          <span class="sb-code">${home}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]}) <span class="sb-div">${homeDiv} · ${fieldType}</span></span>
           <span class="pick-line">${homeLine}</span>
         </label>
         <label class="pick-option ${awayClass}">
           <input type="radio" name="${radioName}" value="${away}" data-gamekey="${gameKey}" ${picked===away?'checked':''}>
-          <span class="sb-code">${away}</span><span class="sb-name">${TEAM_NAME[away]} (${ranks[away]}) <span class="sb-div">${awayDiv}</span></span>
+          <span class="sb-code">${away}</span><span class="sb-name">${TEAM_NAME[away]} (${ranks[away]}) <span class="sb-div">${awayDiv} · ${fieldType}</span></span>
           <span class="pick-line">${awayLine}</span>
         </label>
       </div>
