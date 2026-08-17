@@ -459,6 +459,51 @@
     text-transform:none;
   }
 
+  /* Instructions accordion */
+  .instructions-accordion{
+    border:1px solid var(--line);
+    border-radius:10px;
+    margin-bottom:14px;
+    overflow:hidden;
+  }
+  .instructions-accordion summary{
+    cursor:pointer;
+    padding:12px 14px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    font-weight:700;
+    background:#F4F1E8;
+    list-style:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .instructions-accordion summary::-webkit-details-marker{display:none;}
+  .instructions-accordion summary::after{content:'▸';float:right;transition:transform .15s;color:var(--muted);}
+  .instructions-accordion[open] summary::after{transform:rotate(90deg);}
+  .instructions-body{padding:14px;line-height:1.8;font-size:13px;}
+  .instructions-section-title{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--strength-amber);
+    margin:16px 0 6px;
+  }
+  .instructions-section-title:first-child{margin-top:0;}
+  .card-mockup{
+    width:100%;
+    border-collapse:collapse;
+    border:2px dashed #2E8B7A;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    margin-top:8px;
+  }
+  .card-mockup td{
+    border:1px solid var(--line);
+    padding:7px 4px;
+    text-align:center;
+  }
+  .card-mockup .hdr{background:#FDF6DC;font-weight:700;}
+
   /* Pool / betting */
   .pool-table{
     width:100%;
@@ -847,12 +892,32 @@
           <select id="picksWeekSelect" style="width:auto;min-height:36px;padding:6px 10px;font-size:12px;"></select>
         </div>
       </div>
-      <div class="panel-sub" style="margin-bottom:14px;line-height:1.9;">
-        <div><span style="color:var(--text);background:#E3F6E8;padding:1px 6px;border-radius:4px;">Green</span> = home team</div>
-        <div>AFCE/AFCN/AFCS/AFCW = AFC East/North/South/West</div>
-        <div>NFCE/NFCN/NFCS/NFCW = NFC East/North/South/West</div>
-        <div>All kickoff times are Eastern Time (ET) — a second time only appears when the home team is in a different time zone, showing that team's local time</div>
-      </div>
+      <details class="instructions-accordion">
+        <summary>Instructions</summary>
+        <div class="instructions-body">
+          <div class="instructions-section-title">Legend</div>
+          <div><span style="color:var(--text);background:#E3F6E8;padding:1px 6px;border-radius:4px;">Green</span> = home team</div>
+          <div>AFCE/AFCN/AFCS/AFCW = AFC East/North/South/West</div>
+          <div>NFCE/NFCN/NFCS/NFCW = NFC East/North/South/West</div>
+          <div>All kickoff times are Eastern Time (ET) — a second time only appears when the home team is in a different time zone, showing that team's local time</div>
+
+          <div class="instructions-section-title">How to Bet</div>
+          <div>Every game starts with $5 already on the favorite (or the home team if it's a true pick 'em) — that covers the minimum automatically, but adjust it to match your own confidence.</div>
+          <div>Use the − and + buttons next to each team to change your bet in $5 steps, from $5 up to $40 per team.</div>
+          <div>Every player gets a fresh $200 to bet each week, and the full $200 has to be allocated across that week's games.</div>
+          <div>If your Bank (season winnings) allows it, you can press up to $200 more of it into that week's bets — a $400 weekly maximum.</div>
+          <div>Once a game's real kickoff time passes, its bet locks and can't be changed.</div>
+          <div>Taking a bet down to $0 automatically flips it to the other team at $5 — every game always has money on exactly one side.</div>
+
+          <div class="instructions-section-title">How to Read the Card</div>
+          <table class="card-mockup">
+            <tr><td class="hdr">Game #</td><td class="hdr" colspan="5">Start Time</td></tr>
+            <tr><td class="hdr">Field Type</td><td class="hdr" colspan="5">Away Team Local Time</td></tr>
+            <tr><td>SOS Points</td><td>Home Team</td><td>Team Ranking</td><td>Division</td><td>Game Line</td><td>Bet</td></tr>
+            <tr><td>SOS Points</td><td>Away Team</td><td>Team Ranking</td><td>Division</td><td>Game Line</td><td>Bet</td></tr>
+          </table>
+        </div>
+      </details>
       <div id="poolStatsBar" style="display:none;"></div>
       <div id="upcomingWrap"><div class="empty">Loading...</div></div>
     </div>
