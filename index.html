@@ -443,6 +443,7 @@
     color:var(--muted);
     padding:7px 12px 0;
   }
+  .sb-kickoff{color:var(--strength-amber);text-transform:none;letter-spacing:normal;}
   .sb-row{
     display:flex;
     justify-content:space-between;
@@ -666,7 +667,6 @@
     <button class="tab-btn" data-tab="angles">Angles</button>
     <button class="tab-btn" data-tab="about">About</button>
     <button class="tab-btn admin-tab" data-tab="addresult" style="display:none;">Add Result</button>
-    <button class="tab-btn admin-tab" data-tab="settings" style="display:none;">Settings</button>
     <button class="tab-btn admin-tab" data-tab="seeds" style="display:none;">Seeds</button>
     <button class="tab-btn admin-tab" data-tab="log" style="display:none;">Log</button>
   </div>
@@ -744,7 +744,7 @@
     <div class="panel">
       <div class="panel-head">
         <div class="panel-title">Angles</div>
-        <div class="panel-sub">Travel · Stadium/Surface · Schedule · Division</div>
+        <div class="panel-sub">Home Field · Travel · Stadium/Surface · Schedule</div>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
         <div class="result-toggle" id="angleModeToggle" style="max-width:320px;">
@@ -762,6 +762,22 @@
         <div></div><div class="angle-col-label">Default</div><div class="angle-col-label">Mine</div>
       </div>
       <div id="anglesWrap"></div>
+
+      <div class="angle-cat-head" style="margin-top:26px;">Rating Settings <span style="color:var(--muted);text-transform:none;letter-spacing:normal;">— admin-only, one shared number for everyone (these drive the published Rankings)</span></div>
+      <label for="dampingInput">Recency damping (%)</label>
+      <input type="number" id="dampingInput" min="1" max="100" step="1" value="10">
+      <div class="panel-sub" style="margin-top:8px;">
+        How much of an opponent's rating counts toward your strength bonus. Without damping, ratings
+        compound out of control over a full season — 10% keeps numbers sane while still rewarding
+        wins over good teams. Lower = flatter, higher = more volatile.
+      </div>
+
+      <label for="carryoverInput">2025 carryover (%)</label>
+      <input type="number" id="carryoverInput" min="0" max="100" step="5" value="50">
+      <div class="panel-sub" style="margin-top:8px;">
+        How much of each team's final 2025 rating counts as their Week 1 2026 starting point.
+        0% = everyone starts at zero (Week 1 spreads become flat home-field-only). 100% = full carryover.
+      </div>
     </div>
   </div>
 
@@ -790,34 +806,6 @@
 
       <div class="err" id="formErr">All Week games are already entered.</div>
       <button class="btn" id="addBtn">Add game</button>
-    </div>
-  </div>
-
-  <div class="tab-panel" id="tab-settings">
-    <div class="panel">
-      <div class="panel-head">
-        <div class="panel-title">Rating Settings</div>
-      </div>
-      <label for="homeAdvInput">Home field advantage (pts)</label>
-      <input type="number" id="homeAdvInput" min="0" step="0.5" value="2.5">
-      <div class="panel-sub" style="margin-top:8px;">
-        Spread = half the gap between the two teams' ranks, then this many points shift toward whichever team is home.
-      </div>
-
-      <label for="dampingInput">Recency damping (%)</label>
-      <input type="number" id="dampingInput" min="1" max="100" step="1" value="10">
-      <div class="panel-sub" style="margin-top:8px;">
-        How much of an opponent's rating counts toward your strength bonus. Without damping, ratings
-        compound out of control over a full season — 10% keeps numbers sane while still rewarding
-        wins over good teams. Lower = flatter, higher = more volatile.
-      </div>
-
-      <label for="carryoverInput">2025 carryover (%)</label>
-      <input type="number" id="carryoverInput" min="0" max="100" step="5" value="50">
-      <div class="panel-sub" style="margin-top:8px;">
-        How much of each team's final 2025 rating counts as their Week 1 2026 starting point.
-        0% = everyone starts at zero (Week 1 spreads become flat home-field-only). 100% = full carryover.
-      </div>
     </div>
   </div>
 
@@ -937,6 +925,9 @@ const SCHEDULE = [
   [18,"PHI","NYG"],[18,"SEA","LAR"],[18,"PIT","BAL"],[18,"DAL","WAS"]
 ];
 
+// Verified kickoff date/time for each game (see GAME_TIMES const below for how it's used).
+const GAME_TIMES_DATA = {"1|NE|SEA":["2026-09-09","20:20"],"1|SF|LAR":["2026-09-10","20:35"],"1|CHI|CAR":["2026-09-13","13:00"],"1|TB|CIN":["2026-09-13","13:00"],"1|BAL|IND":["2026-09-13","13:00"],"1|BUF|HOU":["2026-09-13","13:00"],"1|NO|DET":["2026-09-13","13:00"],"1|NYJ|TEN":["2026-09-13","13:00"],"1|ATL|PIT":["2026-09-13","13:00"],"1|CLE|JAX":["2026-09-13","13:00"],"1|ARI|LAC":["2026-09-13","16:25"],"1|GB|MIN":["2026-09-13","16:25"],"1|MIA|LV":["2026-09-13","16:25"],"1|WAS|PHI":["2026-09-13","16:25"],"1|DAL|NYG":["2026-09-13","20:20"],"1|DEN|KC":["2026-09-14","20:15"],"2|DET|BUF":["2026-09-17","20:15"],"2|MIN|CHI":["2026-09-20","13:00"],"2|PHI|TEN":["2026-09-20","13:00"],"2|GB|NYJ":["2026-09-20","13:00"],"2|CAR|ATL":["2026-09-20","13:00"],"2|NO|BAL":["2026-09-20","13:00"],"2|CIN|HOU":["2026-09-20","13:00"],"2|CLE|TB":["2026-09-20","13:00"],"2|PIT|NE":["2026-09-20","13:00"],"2|LV|LAC":["2026-09-20","16:05"],"2|JAX|DEN":["2026-09-20","16:05"],"2|WAS|DAL":["2026-09-20","16:25"],"2|SEA|ARI":["2026-09-20","16:25"],"2|MIA|SF":["2026-09-20","16:25"],"2|IND|KC":["2026-09-20","20:20"],"2|NYG|LAR":["2026-09-21","20:15"],"3|ATL|GB":["2026-09-24","20:15"],"3|KC|MIA":["2026-09-27","13:00"],"3|HOU|IND":["2026-09-27","13:00"],"3|TEN|NYG":["2026-09-27","13:00"],"3|NE|JAX":["2026-09-27","13:00"],"3|CIN|PIT":["2026-09-27","13:00"],"3|CAR|CLE":["2026-09-27","13:00"],"3|NYJ|DET":["2026-09-27","13:00"],"3|SEA|WAS":["2026-09-27","13:00"],"3|LAC|BUF":["2026-09-27","13:00"],"3|MIN|TB":["2026-09-27","16:05"],"3|ARI|SF":["2026-09-27","16:05"],"3|BAL|DAL":["2026-09-27","16:25"],"3|LV|NO":["2026-09-27","16:25"],"3|LAR|DEN":["2026-09-27","20:20"],"3|PHI|CHI":["2026-09-28","20:15"],"4|PIT|CLE":["2026-10-01","20:15"],"4|IND|WAS":["2026-10-04","09:30"],"4|TEN|BAL":["2026-10-04","13:00"],"4|ARI|NYG":["2026-10-04","13:00"],"4|JAX|CIN":["2026-10-04","13:00"],"4|NE|BUF":["2026-10-04","13:00"],"4|DAL|HOU":["2026-10-04","13:00"],"4|LAR|PHI":["2026-10-04","13:00"],"4|GB|TB":["2026-10-04","13:00"],"4|NYJ|CHI":["2026-10-04","13:00"],"4|MIA|MIN":["2026-10-04","16:05"],"4|DEN|SF":["2026-10-04","16:25"],"4|LAC|SEA":["2026-10-04","16:25"],"4|KC|LV":["2026-10-04","16:25"],"4|DET|CAR":["2026-10-04","20:20"],"4|ATL|NO":["2026-10-05","20:15"],"5|TB|DAL":["2026-10-08","20:15"],"5|PHI|JAX":["2026-10-11","09:30"],"5|LV|NE":["2026-10-11","13:00"],"5|HOU|TEN":["2026-10-11","13:00"],"5|CLE|NYJ":["2026-10-11","13:00"],"5|IND|PIT":["2026-10-11","13:00"],"5|CIN|MIA":["2026-10-11","13:00"],"5|MIN|NO":["2026-10-11","13:00"],"5|NYG|WAS":["2026-10-11","13:00"],"5|DEN|LAC":["2026-10-11","16:05"],"5|CHI|GB":["2026-10-11","16:25"],"5|DET|ARI":["2026-10-11","16:25"],"5|SF|SEA":["2026-10-11","16:25"],"5|BAL|ATL":["2026-10-11","20:20"],"5|BUF|LAR":["2026-10-12","20:15"],"6|SEA|DEN":["2026-10-15","20:15"],"6|HOU|JAX":["2026-10-18","09:30"],"6|NYJ|NE":["2026-10-18","13:00"],"6|PIT|TB":["2026-10-18","13:00"],"6|CAR|PHI":["2026-10-18","13:00"],"6|CHI|ATL":["2026-10-18","13:00"],"6|TEN|IND":["2026-10-18","13:00"],"6|NO|NYG":["2026-10-18","13:00"],"6|BAL|CLE":["2026-10-18","13:00"],"6|ARI|LAR":["2026-10-18","16:05"],"6|LAC|KC":["2026-10-18","16:25"],"6|BUF|LV":["2026-10-18","16:25"],"6|DAL|GB":["2026-10-18","20:20"],"6|WAS|SF":["2026-10-19","20:15"],"7|NE|CHI":["2026-10-22","20:15"],"7|PIT|NO":["2026-10-25","09:30"],"7|CLE|TEN":["2026-10-25","13:00"],"7|MIA|NYJ":["2026-10-25","13:00"],"7|IND|MIN":["2026-10-25","13:00"],"7|CIN|BAL":["2026-10-25","13:00"],"7|NYG|HOU":["2026-10-25","13:00"],"7|TB|CAR":["2026-10-25","13:00"],"7|SF|ATL":["2026-10-25","13:00"],"7|DEN|ARI":["2026-10-25","16:05"],"7|LAR|LV":["2026-10-25","16:25"],"7|GB|DET":["2026-10-25","16:25"],"7|KC|SEA":["2026-10-25","20:20"],"7|DAL|PHI":["2026-10-26","20:15"],"8|CAR|GB":["2026-10-29","20:15"],"8|TEN|CIN":["2026-11-01","13:00"],"8|IND|JAX":["2026-11-01","13:00"],"8|CLE|PIT":["2026-11-01","13:00"],"8|BAL|BUF":["2026-11-01","13:00"],"8|ATL|TB":["2026-11-01","13:00"],"8|MIN|DET":["2026-11-01","13:00"],"8|ARI|DAL":["2026-11-01","13:00"],"8|LV|NYJ":["2026-11-01","13:00"],"8|LAC|LAR":["2026-11-01","16:05"],"8|KC|DEN":["2026-11-01","16:25"],"8|NE|MIA":["2026-11-01","16:25"],"8|PHI|WAS":["2026-11-01","20:20"],"8|CHI|SEA":["2026-11-02","20:15"],"9|JAX|BAL":["2026-11-05","20:15"],"9|CIN|ATL":["2026-11-08","09:30"],"9|NYJ|KC":["2026-11-08","13:00"],"9|CLE|NO":["2026-11-08","13:00"],"9|DEN|CAR":["2026-11-08","13:00"],"9|DAL|IND":["2026-11-08","13:00"],"9|DET|MIA":["2026-11-08","13:00"],"9|NYG|PHI":["2026-11-08","13:00"],"9|LAR|WAS":["2026-11-08","13:00"],"9|LV|SF":["2026-11-08","16:05"],"9|HOU|LAC":["2026-11-08","16:05"],"9|ARI|SEA":["2026-11-08","16:25"],"9|GB|NE":["2026-11-08","16:25"],"9|TB|CHI":["2026-11-08","20:20"],"9|BUF|MIN":["2026-11-09","20:15"],"10|WAS|NYG":["2026-11-12","20:15"],"10|NE|DET":["2026-11-15","09:30"],"10|BUF|NYJ":["2026-11-15","13:00"],"10|MIA|IND":["2026-11-15","13:00"],"10|KC|ATL":["2026-11-15","13:00"],"10|MIN|GB":["2026-11-15","13:00"],"10|JAX|TEN":["2026-11-15","13:00"],"10|HOU|CLE":["2026-11-15","13:00"],"10|CAR|NO":["2026-11-15","13:00"],"10|LAR|ARI":["2026-11-15","16:05"],"10|SEA|LV":["2026-11-15","16:05"],"10|SF|DAL":["2026-11-15","16:25"],"10|PIT|CIN":["2026-11-15","20:20"],"10|LAC|BAL":["2026-11-16","20:15"],"11|IND|HOU":["2026-11-19","20:15"],"11|ARI|KC":["2026-11-22","13:00"],"11|TB|DET":["2026-11-22","13:00"],"11|JAX|NYG":["2026-11-22","13:00"],"11|MIA|BUF":["2026-11-22","13:00"],"11|TEN|DAL":["2026-11-22","13:00"],"11|BAL|CAR":["2026-11-22","13:00"],"11|NO|CHI":["2026-11-22","13:00"],"11|NYJ|LAC":["2026-11-22","16:05"],"11|PIT|PHI":["2026-11-22","16:25"],"11|LV|DEN":["2026-11-22","16:25"],"11|MIN|SF":["2026-11-22","20:20"],"11|CIN|WAS":["2026-11-23","20:15"],"12|GB|LAR":["2026-11-25","20:00"],"12|CHI|DET":["2026-11-26","13:00"],"12|PHI|DAL":["2026-11-26","16:30"],"12|KC|BUF":["2026-11-26","20:20"],"12|DEN|PIT":["2026-11-27","15:00"],"12|BAL|HOU":["2026-11-29","13:00"],"12|NO|CIN":["2026-11-29","13:00"],"12|NYJ|MIA":["2026-11-29","13:00"],"12|ATL|MIN":["2026-11-29","13:00"],"12|NYG|IND":["2026-11-29","13:00"],"12|LV|CLE":["2026-11-29","13:00"],"12|TEN|JAX":["2026-11-29","16:05"],"12|WAS|ARI":["2026-11-29","16:25"],"12|SEA|SF":["2026-11-29","16:25"],"12|NE|LAC":["2026-11-29","20:20"],"12|CAR|TB":["2026-11-30","20:15"],"13|KC|LAR":["2026-12-03","20:15"],"13|DET|ATL":["2026-12-06","13:00"],"13|LAC|TB":["2026-12-06","13:00"],"13|WAS|TEN":["2026-12-06","13:00"],"13|CIN|CLE":["2026-12-06","13:00"],"13|SF|NYG":["2026-12-06","13:00"],"13|GB|NO":["2026-12-06","13:00"],"13|JAX|CHI":["2026-12-06","13:00"],"13|PHI|ARI":["2026-12-06","16:05"],"13|MIA|DEN":["2026-12-06","16:05"],"13|CAR|MIN":["2026-12-06","16:25"],"13|BUF|NE":["2026-12-06","16:25"],"13|HOU|PIT":["2026-12-06","20:20"],"13|DAL|SEA":["2026-12-07","20:15"],"14|MIN|NE":["2026-12-10","20:15"],"14|DEN|NYJ":["2026-12-13","13:00"],"14|ATL|CLE":["2026-12-13","13:00"],"14|CHI|MIA":["2026-12-13","13:00"],"14|HOU|WAS":["2026-12-13","13:00"],"14|NO|CAR":["2026-12-13","13:00"],"14|IND|PHI":["2026-12-13","13:00"],"14|TB|BAL":["2026-12-13","13:00"],"14|TEN|DET":["2026-12-13","13:00"],"14|LAC|LV":["2026-12-13","16:05"],"14|KC|CIN":["2026-12-13","16:25"],"14|LAR|SF":["2026-12-13","16:25"],"14|NYG|SEA":["2026-12-13","16:25"],"14|BUF|GB":["2026-12-13","20:20"],"14|PIT|JAX":["2026-12-14","20:15"],"15|SF|LAC":["2026-12-17","20:15"],"15|SEA|PHI":["2026-12-19","17:00"],"15|CHI|BUF":["2026-12-19","20:20"],"15|JAX|HOU":["2026-12-20","13:00"],"15|BAL|PIT":["2026-12-20","13:00"],"15|CLE|NYG":["2026-12-20","13:00"],"15|IND|TEN":["2026-12-20","13:00"],"15|MIA|GB":["2026-12-20","13:00"],"15|NO|TB":["2026-12-20","13:00"],"15|CIN|CAR":["2026-12-20","13:00"],"15|ATL|WAS":["2026-12-20","13:00"],"15|NYJ|ARI":["2026-12-20","16:05"],"15|DAL|LAR":["2026-12-20","16:25"],"15|DEN|LV":["2026-12-20","16:25"],"15|DET|MIN":["2026-12-20","20:20"],"15|NE|KC":["2026-12-21","20:15"],"16|HOU|PHI":["2026-12-24","20:15"],"16|GB|CHI":["2026-12-25","13:00"],"16|BUF|DEN":["2026-12-25","16:30"],"16|LAR|SEA":["2026-12-25","20:15"],"16|NE|NYJ":["2026-12-27","13:00"],"16|CLE|BAL":["2026-12-27","13:00"],"16|LAC|MIA":["2026-12-27","13:00"],"16|SF|KC":["2026-12-27","16:25"],"16|JAX|DAL":["2026-12-27","20:20"],"16|NYG|DET":["2026-12-28","20:15"],"16|TEN|LV":["2026-12-27","16:05"],"16|ARI|NO":["2026-12-27","13:00"],"17|BAL|CIN":["2026-12-31","20:15"],"17|BUF|MIA":["2027-01-03","13:00"],"17|PIT|TEN":["2027-01-03","13:00"],"17|MIN|NYJ":["2027-01-03","13:00"],"17|NO|ATL":["2027-01-03","13:00"],"17|SEA|CAR":["2027-01-03","13:00"],"17|IND|CLE":["2027-01-03","13:00"],"17|NYG|DAL":["2027-01-03","13:00"],"17|LV|ARI":["2027-01-03","16:05"],"17|DET|CHI":["2027-01-03","16:25"],"17|PHI|SF":["2027-01-03","20:20"],"17|HOU|GB":["2027-01-04","20:15"]};
+
 let games = [];
 let mode = 'public';
 let sortKey = 'total';
@@ -958,6 +949,37 @@ const homeScoreInput = document.getElementById('homeScore');
 
 function scheduledGamesForWeek(w){
   return SCHEDULE.filter(([sw])=>sw===w);
+}
+// Chronological sort: games with a known kickoff time first (earliest first), then games
+// still awaiting an official time (flex weeks 16-18) grouped at the end. Ties at the exact
+// same kickoff sort by the home team's time zone, west to east.
+function sortWeekGames(weekGames){
+  return [...weekGames].sort((A,B)=>{
+    const [wA,awayA,homeA] = A, [wB,awayB,homeB] = B;
+    const gtA = GAME_TIMES[`${wA}|${awayA}|${homeA}`];
+    const gtB = GAME_TIMES[`${wB}|${awayB}|${homeB}`];
+    if(gtA && !gtB) return -1;
+    if(!gtA && gtB) return 1;
+    if(!gtA && !gtB) return 0;
+    const dtA = gtA[0]+'T'+gtA[1], dtB = gtB[0]+'T'+gtB[1];
+    if(dtA !== dtB) return dtA < dtB ? -1 : 1;
+    const zA = ZONE_SORT_ORDER[TEAM_ZONE[homeA]] ?? 9;
+    const zB = ZONE_SORT_ORDER[TEAM_ZONE[homeB]] ?? 9;
+    return zA - zB;
+  });
+}
+function formatKickoff(week, away, home){
+  const gt = GAME_TIMES[`${week}|${away}|${home}`];
+  if(!gt) return null;
+  const [dateISO, time] = gt;
+  const d = new Date(dateISO+'T00:00:00Z');
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const [hh, mm] = time.split(':').map(Number);
+  const ampm = hh >= 12 ? 'PM' : 'AM';
+  let h12 = hh % 12; if(h12 === 0) h12 = 12;
+  const mmStr = mm === 0 ? '' : ':' + String(mm).padStart(2,'0');
+  return `${days[d.getUTCDay()]} ${months[d.getUTCMonth()]} ${d.getUTCDate()} · ${h12}${mmStr} ${ampm} ET`;
 }
 function alreadyEntered(w, away, home){
   return games.some(g=>g.week===w && g.away===away && g.home===home);
@@ -1021,7 +1043,6 @@ async function loadSettings(){
     (data || []).forEach(row=>{
       const val = parseFloat(row.value);
       if(isNaN(val)) return;
-      if(row.key === 'home_adv' && val >= 0) HOME_ADV = val;
       if(row.key === 'damping' && val >= 0 && val <= 1) DAMPING = val;
       if(row.key === 'carryover_pct' && val >= 0 && val <= 100) CARRYOVER_PCT = val;
     });
@@ -1039,8 +1060,6 @@ async function loadSettings(){
     ADJUSTMENTS = {};
   }
 
-  const homeAdvEl = document.getElementById('homeAdvInput');
-  if(homeAdvEl) homeAdvEl.value = HOME_ADV;
   const dampingEl = document.getElementById('dampingInput');
   if(dampingEl) dampingEl.value = Math.round(DAMPING*100);
   const carryoverEl = document.getElementById('carryoverInput');
@@ -1049,12 +1068,6 @@ async function loadSettings(){
   renderSeedsTable();
 }
 
-async function saveHomeAdv(value){
-  try{
-    const {error} = await db.rpc('sc_set_setting', {p_secret: ADMIN_SECRET, p_key: 'home_adv', p_value: String(value)});
-    if(error) throw error;
-  }catch(e){ console.error('Save error', e); alert('Could not save — admin session may have expired.'); }
-}
 async function saveDamping(value){
   try{
     const {error} = await db.rpc('sc_set_setting', {p_secret: ADMIN_SECRET, p_key: 'damping', p_value: String(value)});
@@ -1074,22 +1087,11 @@ async function saveAdjustment(code, value){
   }catch(e){ console.error('Save error', e); alert('Could not save — admin session may have expired.'); }
 }
 
-const homeAdvInput = document.getElementById('homeAdvInput');
-if(homeAdvInput) homeAdvInput.addEventListener('change', async ()=>{
-  const val = parseFloat(homeAdvInput.value);
-  if(isNaN(val) || val < 0){
-    homeAdvInput.value = HOME_ADV;
-    return;
-  }
-  HOME_ADV = val;
-  await saveHomeAdv(val);
-  render();
-});
-
 const dampingInput = document.getElementById('dampingInput');
 if(dampingInput) dampingInput.addEventListener('change', async ()=>{
   const val = parseFloat(dampingInput.value);
   if(isNaN(val) || val < 1 || val > 100){
+
     dampingInput.value = Math.round(DAMPING*100);
     return;
   }
@@ -1255,33 +1257,34 @@ function computeStandings(gamesList){
   return {maxWeek, snapshot, weeklyTotals};
 }
 
-let HOME_ADV = 2.5; // points of home-field advantage baked into the spread formula — editable in Admin
 let DAMPING = 0.10; // recency damping on strength bonus (0-1) — prevents ratings from compounding out of control
 let CARRYOVER_PCT = 50; // % of 2025 final rating carried into Week 1 2026
 let ADJUSTMENTS = {}; // per-team manual offseason adjustment, code -> points
 
 // Angle sheet: situational point adjustments, gamed out and reduced to the key
-// one-sided, verifiable factors (travel, stadium/surface incl. altitude, schedule, division).
-// Motivation, generic weather, market conditions, and personnel were deliberately cut — see chat.
+// one-sided, verifiable factors. Motivation, generic weather (unpredictable ahead of
+// time), market conditions, and personnel were deliberately cut — see chat.
+// Home Field (incl. division bonus) and Rest Differential are wired into computeSpread below.
+// Travel and Stadium/Surface are tracked and editable but not yet wired — they need a
+// verified per-team stadium/surface data table as a separate pass.
 const ANGLE_DEFAULTS = [
+  {id:'HFA', cat:'Home Field', condition:'Home field advantage', points:2.5, weight:'High'},
+  {id:'HFA_DIV', cat:'Home Field', condition:'Home field advantage — division game', points:3.5, weight:'High'},
   {id:'T1', cat:'Travel', condition:'West Coast team traveling to East Coast', points:-2, weight:'High'},
   {id:'T2', cat:'Travel', condition:'East Coast team traveling to West Coast', points:-1, weight:'High'},
   {id:'T3', cat:'Travel', condition:'Central team traveling to East Coast', points:-1, weight:'High'},
   {id:'T4', cat:'Travel', condition:'Mountain team traveling to East Coast', points:-1, weight:'High'},
   {id:'T5', cat:'Travel', condition:'Central team traveling to West Coast', points:0, weight:'High'},
   {id:'T6', cat:'Travel', condition:'Mountain team traveling to West Coast', points:0, weight:'High'},
-  {id:'S1', cat:'Stadium / Surface', condition:'Dome or warm-weather team into extreme cold or wind', points:-1, weight:'Medium'},
   {id:'S2', cat:'Stadium / Surface', condition:'Dome team playing on grass', points:-1, weight:'Medium'},
   {id:'S3', cat:'Stadium / Surface', condition:'Turf team playing on grass', points:-1, weight:'Medium'},
   {id:'S4', cat:'Stadium / Surface', condition:'Sea-level team into high altitude (Denver)', points:-1, weight:'Medium'},
   {id:'SC1', cat:'Schedule', condition:'West Coast team, early ET kickoff slot', points:-2, weight:'High'},
   {id:'SC2', cat:'Schedule', condition:'West Coast team, late ET kickoff slot (SNF/MNF)', points:1, weight:'High'},
   {id:'SC3', cat:'Schedule', condition:'Mountain team, early ET kickoff slot', points:-1, weight:'High'},
-  {id:'SC4', cat:'Schedule', condition:'Short week (Thursday game)', points:-1, weight:'High'},
-  {id:'SC5', cat:'Schedule', condition:'Extra rest / coming off bye', points:1, weight:'High'},
+  {id:'RD1', cat:'Schedule', condition:'Rest differential — points per 7 days of rest advantage', points:1, weight:'High'},
   {id:'SC6', cat:'Schedule', condition:'Second straight road game', points:-1, weight:'Medium'},
   {id:'SC7', cat:'Schedule', condition:'Third+ straight road game', points:-2, weight:'Medium'},
-  {id:'D1', cat:'Division', condition:'Division game', points:1, weight:'Low'},
 ];
 const ANGLE_DEFAULT_MAP = Object.fromEntries(ANGLE_DEFAULTS.map(a=>[a.id, a.points]));
 
@@ -1399,26 +1402,101 @@ function getRankMap(totals){
   return ranks;
 }
 
-// Higher-ranked (lower rank number) team is favored by half the rank gap;
-// home team gets a flat HOME_ADV bonus baked into that margin.
-function computeSpread(away, home, totals){
+// Static team facts used to auto-apply angles — time zone (for Travel + kickoff-slot angles)
+// and division (for the division home-field bonus). Stable NFL facts, not expected to change.
+const TEAM_ZONE = {
+  SEA:'Pacific', SF:'Pacific', LAR:'Pacific', LAC:'Pacific', LV:'Pacific',
+  DEN:'Mountain', ARI:'Mountain',
+  CHI:'Central', GB:'Central', MIN:'Central', DAL:'Central', HOU:'Central', KC:'Central', NO:'Central', TEN:'Central',
+  BUF:'Eastern', MIA:'Eastern', NE:'Eastern', NYJ:'Eastern', NYG:'Eastern', BAL:'Eastern', CIN:'Eastern',
+  CLE:'Eastern', PIT:'Eastern', IND:'Eastern', JAX:'Eastern', DET:'Eastern', PHI:'Eastern', WAS:'Eastern',
+  ATL:'Eastern', CAR:'Eastern', TB:'Eastern',
+};
+const TEAM_DIVISION = {
+  BUF:'AFC East', MIA:'AFC East', NE:'AFC East', NYJ:'AFC East',
+  BAL:'AFC North', CIN:'AFC North', CLE:'AFC North', PIT:'AFC North',
+  HOU:'AFC South', IND:'AFC South', JAX:'AFC South', TEN:'AFC South',
+  DEN:'AFC West', KC:'AFC West', LV:'AFC West', LAC:'AFC West',
+  DAL:'NFC East', NYG:'NFC East', PHI:'NFC East', WAS:'NFC East',
+  CHI:'NFC North', DET:'NFC North', GB:'NFC North', MIN:'NFC North',
+  ATL:'NFC South', CAR:'NFC South', NO:'NFC South', TB:'NFC South',
+  ARI:'NFC West', LAR:'NFC West', SF:'NFC West', SEA:'NFC West',
+};
+const TRAVEL_MAP = { // "away-zone>home-zone" -> angle id (only the 6 pairs we kept)
+  'Pacific>Eastern':'T1', 'Eastern>Pacific':'T2',
+  'Central>Eastern':'T3', 'Mountain>Eastern':'T4',
+  'Central>Pacific':'T5', 'Mountain>Pacific':'T6',
+};
+const ZONE_SORT_ORDER = {Pacific:0, Mountain:1, Central:2, Eastern:3};
+
+// Verified kickoff date/time for each scheduled game, "week|away|home" -> [dateISO, "HH:MM" ET 24h].
+// Weeks 1-15 confirmed from the official 2026 schedule release. Weeks 16-18 are partially TBD —
+// the NFL hasn't announced several flex-scheduled matchups yet; those simply have no entry here.
+const GAME_TIMES = GAME_TIMES_DATA;
+
+function activeAngle(id){
+  const val = ANGLE_MODE === 'custom' ? USER_ANGLES[id] : undefined;
+  return val !== undefined ? val : effectiveDefault(id);
+}
+
+function teamLastGameDate(code, week){
+  let bestWeek = -1, bestDate = null;
+  for(const [w,a,h] of SCHEDULE){
+    if(w >= week) continue;
+    if(a !== code && h !== code) continue;
+    const gt = GAME_TIMES[`${w}|${a}|${h}`];
+    if(gt && w > bestWeek){ bestWeek = w; bestDate = gt[0]; }
+  }
+  return bestDate;
+}
+function restDaysFor(code, week, thisDateISO){
+  const prev = teamLastGameDate(code, week);
+  if(!prev || !thisDateISO) return null;
+  const ms = new Date(thisDateISO+'T00:00:00Z') - new Date(prev+'T00:00:00Z');
+  return Math.round(ms / 86400000);
+}
+
+// Signed points favoring HOME (negative favors away). Folds in home field (division-aware),
+// travel, kickoff-slot body-clock effects, and rest differential wherever the underlying
+// facts (zone, kickoff time, prior game date) are known. Stadium/Surface angles are tracked
+// on the Angles tab but not yet applied here — see note above ANGLE_DEFAULTS.
+function computeAngleAdjustment(away, home, week){
+  let adj = 0;
+  const isDivision = TEAM_DIVISION[away] && TEAM_DIVISION[away] === TEAM_DIVISION[home];
+  adj += isDivision ? activeAngle('HFA_DIV') : activeAngle('HFA');
+
+  const az = TEAM_ZONE[away], hz = TEAM_ZONE[home];
+  const travelId = TRAVEL_MAP[`${az}>${hz}`];
+  if(travelId) adj -= activeAngle(travelId); // travel angle points are already signed from the away team's perspective
+
+  const gt = week ? GAME_TIMES[`${week}|${away}|${home}`] : null;
+  if(gt){
+    const [date, time] = gt;
+    const [hh, mm] = time.split(':').map(Number);
+    const hourDec = hh + mm/60;
+    if(az === 'Pacific'){
+      if(hourDec < 14) adj -= activeAngle('SC1');
+      else if(hourDec >= 20) adj -= activeAngle('SC2');
+    } else if(az === 'Mountain'){
+      if(hourDec < 14) adj -= activeAngle('SC3');
+    }
+    const restAway = restDaysFor(away, week, date);
+    const restHome = restDaysFor(home, week, date);
+    if(restAway != null && restHome != null){
+      adj += ((restHome - restAway) / 7) * activeAngle('RD1');
+    }
+  }
+  return adj;
+}
+
+// Rank-based base spread (half the rank gap) plus the angle adjustment above.
+function computeSpread(away, home, totals, week){
   const ranks = getRankMap(totals);
   const rankAway = ranks[away], rankHome = ranks[home];
-  const base = Math.abs(rankAway - rankHome) / 2;
-  const awayIsBetter = rankAway < rankHome;
-  let favorite, margin;
-  if(awayIsBetter){
-    margin = base - HOME_ADV;
-    favorite = margin >= 0 ? away : home;
-    margin = Math.abs(margin);
-  } else if(rankHome < rankAway){
-    margin = base + HOME_ADV;
-    favorite = home;
-  } else {
-    margin = HOME_ADV;
-    favorite = home;
-  }
-  return {favorite, margin};
+  const base = (rankAway - rankHome) / 2; // positive => home ranked better => favors home
+  const margin = base + computeAngleAdjustment(away, home, week);
+  const favorite = margin >= 0 ? home : away;
+  return {favorite, margin: Math.abs(margin)};
 }
 
 function formatSpread(sp){
@@ -1450,7 +1528,7 @@ function setMode(newMode){
     modeBtn.textContent = 'Admin';
     modeBtn.classList.remove('active');
     adminTabs.forEach(t => t.style.display = 'none');
-    if(['addresult','settings','seeds','log'].includes(currentTab)){
+    if(['addresult','seeds','log'].includes(currentTab)){
       switchTab('rankings');
     }
   }
@@ -1503,7 +1581,7 @@ function renderScoreboard(){
       const result = resultOf(g);
       const awayCls = result==='away' ? 'winner' : result==='home' ? 'loser' : '';
       const homeCls = result==='home' ? 'winner' : result==='away' ? 'loser' : '';
-      const spread = formatSpread(computeSpread(g.away, g.home, preGameTotals));
+      const spread = formatSpread(computeSpread(g.away, g.home, preGameTotals, g.week));
       return `
         <div class="sb-game">
           <div class="sb-row ${awayCls}">
@@ -1641,16 +1719,20 @@ function renderUpcoming(){
     }
   }
 
-  const weekGames = scheduledGamesForWeek(picksWeek);
-  if(weekGames.length === 0){
+  const weekGamesRaw = scheduledGamesForWeek(picksWeek);
+  if(weekGamesRaw.length === 0){
     wrap.innerHTML = `<div class="empty">No games scheduled for Week ${picksWeek}.</div>`;
     return;
   }
+  const weekGames = sortWeekGames(weekGamesRaw);
 
   const ranks = getRankMap(latestTotals);
   const picks = loadPicks();
-  wrap.innerHTML = weekGames.map(([,away,home], idx)=>{
-    const sp = computeSpread(away, home, latestTotals);
+  let tbdHeaderShown = false;
+  let gameNum = 0;
+  wrap.innerHTML = weekGames.map(([w,away,home])=>{
+    gameNum++;
+    const sp = computeSpread(away, home, latestTotals, w);
     const isPush = sp.margin === 0;
     const marginText = sp.margin % 1 === 0 ? sp.margin.toFixed(0) : sp.margin.toFixed(1);
     const awayLine = isPush ? 'PK' : (sp.favorite === away ? `-${marginText}` : `+${marginText}`);
@@ -1660,9 +1742,16 @@ function renderUpcoming(){
     const gameKey = `${picksWeek}-${away}-${home}`;
     const picked = picks[gameKey];
     const radioName = `pick-${gameKey}`;
+    const kickoff = formatKickoff(w, away, home);
+    let tbdHeader = '';
+    if(!kickoff && !tbdHeaderShown){
+      tbdHeader = `<div class="sb-week">Times TBD</div>`;
+      tbdHeaderShown = true;
+    }
     return `
+      ${tbdHeader}
       <div class="sb-game">
-        <div class="sb-game-num">Game ${idx+1}</div>
+        <div class="sb-game-num">Game ${gameNum}${kickoff ? ` <span class="sb-kickoff">${kickoff}</span>` : ''}</div>
         <label class="pick-option ${homeClass}">
           <input type="radio" name="${radioName}" value="${home}" data-gamekey="${gameKey}" ${picked===home?'checked':''}>
           <span class="sb-code">${home}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]})</span>
