@@ -458,6 +458,47 @@
     color:var(--muted);
     text-transform:none;
   }
+
+  /* Standings */
+  .standings-cat-head{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--strength-amber);
+    margin:20px 0 6px;
+  }
+  .standings-cat-head:first-child{margin-top:0;}
+  .standings-head-row{
+    display:grid;
+    grid-template-columns:32px 1fr 90px 90px;
+    gap:8px;
+    padding:0 0 4px;
+  }
+  .standings-col-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9.5px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--muted);
+    text-align:right;
+  }
+  .standings-row{
+    display:grid;
+    grid-template-columns:32px 1fr 90px 90px;
+    gap:8px;
+    align-items:center;
+    padding:9px 0;
+    border-bottom:1px solid var(--line);
+    font-size:13px;
+  }
+  .standings-row:last-of-type{border-bottom:none;}
+  .standings-div-code{font-family:'IBM Plex Mono',monospace;color:var(--muted);font-size:11px;}
+  .standings-record{font-family:'IBM Plex Mono',monospace;text-align:right;color:var(--muted);}
+  .standings-sos{font-family:'IBM Plex Mono',monospace;text-align:right;font-weight:600;color:var(--strength-amber);}
+  @media (max-width:520px){
+    .standings-head-row, .standings-row{grid-template-columns:26px 1fr 70px 70px;font-size:12px;}
+  }
   .sb-row{
     display:flex;
     justify-content:space-between;
@@ -678,6 +719,7 @@
     <button class="tab-btn active" data-tab="rankings">Rankings</button>
     <button class="tab-btn" data-tab="spreads">Picks</button>
     <button class="tab-btn" data-tab="scoreboard">Scoreboard</button>
+    <button class="tab-btn" data-tab="standings">Standings</button>
     <button class="tab-btn" data-tab="angles">Angles</button>
     <button class="tab-btn" data-tab="about">About</button>
     <button class="tab-btn admin-tab" data-tab="addresult" style="display:none;">Add Result</button>
@@ -754,9 +796,26 @@
     <div class="panel">
       <div class="panel-head">
         <div class="panel-title">Scoreboard</div>
-        <div class="panel-sub" id="sbGameCount">0 games played</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="panel-sub" id="sbGameCount">0 games played</div>
+          <select id="scoreboardWeekSelect" style="width:auto;min-height:36px;padding:6px 10px;font-size:12px;"></select>
+        </div>
       </div>
       <div id="scoreboardWrap"><div class="empty">No games played yet.</div></div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-standings">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Standings</div>
+        <div class="panel-sub" id="standingsSortLabel">Sorted by division · wins</div>
+      </div>
+      <div class="result-toggle" id="standingsSortToggle" style="max-width:340px;margin-bottom:16px;">
+        <button data-sort="division" class="sel">By Division · Wins</button>
+        <button data-sort="sos">By SOS Points</button>
+      </div>
+      <div id="standingsWrap"></div>
     </div>
   </div>
 
@@ -1612,10 +1671,69 @@ document.getElementById('modeBtn').addEventListener('click', async ()=>{
   modeBtn.disabled = false;
 });
 
+let standingsSortMode = 'division'; // 'division' or 'sos' — per-session, not persisted
+
+function renderStandings(){
+  const wrap = document.getElementById('standingsWrap');
+  if(!wrap) return;
+
+  const toggleEl = document.getElementById('standingsSortToggle');
+  if(toggleEl) toggleEl.querySelectorAll('button').forEach(b=>b.classList.toggle('sel', b.dataset.sort === standingsSortMode));
+  const labelEl = document.getElementById('standingsSortLabel');
+  if(labelEl) labelEl.textContent = standingsSortMode === 'division' ? 'Sorted by division · wins' : 'Sorted by SOS points';
+
+  const {snapshot} = computeStandings(games);
+  const rows = TEAMS.map(([code,name])=>{
+    const s = snapshot[code] || {w:0,l:0,t:0,total:0};
+    return {code, name, w:s.w, l:s.l, t:s.t, sos: s.total};
+  });
+
+  const recordCell = r => `<span class="standings-record">${r.w}-${r.l}${r.t ? `-${r.t}` : ''}</span>`;
+  const sosCell = r => `<span class="standings-sos">${r.sos.toFixed(1)}</span>`;
+  const row = r => `
+    <div class="standings-row">
+      <div class="standings-div-code">${r.code}</div>
+      <div>${r.name}</div>
+      ${recordCell(r)}
+      ${sosCell(r)}
+    </div>
+  `;
+  const headRow = `
+    <div class="standings-head-row">
+      <div></div><div></div>
+      <div class="standings-col-label">Record</div><div class="standings-col-label">SOS Pts</div>
+    </div>
+  `;
+
+  if(standingsSortMode === 'sos'){
+    const sorted = [...rows].sort((a,b)=> b.sos - a.sos);
+    wrap.innerHTML = headRow + sorted.map(row).join('');
+    return;
+  }
+
+  // Division mode: group by division, sort within each division by wins desc, then SOS points desc.
+  const divisions = ['AFC East','AFC North','AFC South','AFC West','NFC East','NFC North','NFC South','NFC West'];
+  wrap.innerHTML = divisions.map(div=>{
+    const teamRows = rows.filter(r=>TEAM_DIVISION[r.code] === div)
+      .sort((a,b)=> b.w - a.w || b.sos - a.sos);
+    return `<div class="standings-cat-head">${div}</div>${headRow}${teamRows.map(row).join('')}`;
+  }).join('');
+}
+
 function renderScoreboard(){
   const wrap = document.getElementById('scoreboardWrap');
   const countEl = document.getElementById('sbGameCount');
   countEl.textContent = `${games.length} game${games.length===1?'':'s'} played`;
+
+  const sel = document.getElementById('scoreboardWeekSelect');
+  if(sel){
+    const playedWeeks = [...new Set(games.map(g=>g.week))].sort((a,b)=>b-a);
+    const optionsHtml = `<option value="all">All Weeks</option>` +
+      playedWeeks.map(w=>`<option value="${w}">Week ${w}</option>`).join('');
+    if(sel.innerHTML !== optionsHtml) sel.innerHTML = optionsHtml;
+    sel.value = scoreboardWeek;
+  }
+
   if(games.length === 0){
     wrap.innerHTML = `<div class="empty">No games played yet.</div>`;
     return;
@@ -1623,7 +1741,12 @@ function renderScoreboard(){
   const {weeklyTotals} = computeStandings(games);
   const byWeek = {};
   games.forEach(g=>{ (byWeek[g.week] = byWeek[g.week]||[]).push(g); });
-  const weeks = Object.keys(byWeek).map(Number).sort((a,b)=>b-a);
+  let weeks = Object.keys(byWeek).map(Number).sort((a,b)=>b-a);
+  if(scoreboardWeek !== 'all') weeks = weeks.filter(w=>w === parseInt(scoreboardWeek,10));
+  if(weeks.length === 0){
+    wrap.innerHTML = `<div class="empty">No games played that week.</div>`;
+    return;
+  }
 
   wrap.innerHTML = weeks.map(w=>{
     const weekGames = [...byWeek[w]].sort((a,b)=>a.id-b.id);
@@ -1838,6 +1961,7 @@ function render(){
   renderScoreboard();
   renderUpcoming();
   renderRankHistory();
+  renderStandings();
 
   // Game log (admin)
   const logWrap = document.getElementById('logWrap');
@@ -1878,6 +2002,22 @@ if(picksWeekSelect) picksWeekSelect.addEventListener('change', ()=>{
   picksWeek = parseInt(picksWeekSelect.value, 10);
   renderUpcoming();
 });
+
+const scoreboardWeekSelect = document.getElementById('scoreboardWeekSelect');
+if(scoreboardWeekSelect) scoreboardWeekSelect.addEventListener('change', ()=>{
+  scoreboardWeek = scoreboardWeekSelect.value;
+  renderScoreboard();
+});
+
+const standingsSortToggle = document.getElementById('standingsSortToggle');
+if(standingsSortToggle){
+  standingsSortToggle.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      standingsSortMode = btn.dataset.sort;
+      renderStandings();
+    });
+  });
+}
 
 const rhScrollLeft = document.getElementById('rhScrollLeft');
 const rhScrollRight = document.getElementById('rhScrollRight');
