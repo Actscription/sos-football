@@ -459,6 +459,59 @@
     text-transform:none;
   }
 
+  /* Pool / betting */
+  .pool-stats-bar{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    background:#F4F1E8;
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px 16px;
+    margin-bottom:14px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+  }
+  .pool-stats-bar .label{color:var(--muted);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;display:block;margin-bottom:2px;}
+  .pool-stats-bar .val{font-size:16px;font-weight:700;color:var(--text);}
+  .pool-stats-bar .val.ok{color:#1E7A3D;}
+  .pool-stats-bar .val.warn{color:var(--strength-amber);}
+  .pool-stats-bar .right{text-align:right;}
+  .bet-stepper{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    justify-content:flex-end;
+  }
+  .bet-stepper button{
+    width:22px;height:22px;
+    border-radius:6px;
+    border:1px solid var(--line);
+    background:#fff;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:14px;
+    line-height:1;
+    cursor:pointer;
+    color:var(--text);
+  }
+  .bet-stepper button:disabled{opacity:.35;cursor:not-allowed;}
+  .bet-stepper button:hover:not(:disabled){background:#F0EDE3;}
+  .bet-amt{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    font-weight:700;
+    min-width:34px;
+    text-align:center;
+    color:var(--text);
+  }
+  .bet-amt.zero{color:var(--muted);font-weight:400;}
+  .bet-locked{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    text-align:right;
+  }
+
   /* Standings */
   .standings-cat-head{
     font-family:'IBM Plex Mono',monospace;
@@ -535,7 +588,6 @@
     align-items:center;
     gap:8px;
     padding:9px 12px;
-    cursor:pointer;
     -webkit-tap-highlight-color:transparent;
     transition:background .1s;
     border-bottom:1px solid var(--line);
@@ -549,23 +601,6 @@
     font-weight:600;
     color:var(--text);
     padding-right:2px;
-  }
-  .pick-option input[type=radio]{
-    appearance:none;
-    -webkit-appearance:none;
-    width:18px;
-    height:18px;
-    border:2px solid var(--muted);
-    border-radius:50%;
-    flex-shrink:0;
-    margin:0;
-    cursor:pointer;
-    position:relative;
-  }
-  .pick-option input[type=radio]:checked{
-    border-color:var(--strength-amber);
-    background:var(--strength-amber);
-    box-shadow:inset 0 0 0 3px var(--panel);
   }
 
   /* Preseason seeds table */
@@ -778,7 +813,7 @@
       <div class="panel-head">
         <div class="panel-title">Picks <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);text-transform:none;letter-spacing:normal;font-weight:400;">top team is at Home</span></div>
         <div style="display:flex;align-items:center;gap:10px;">
-          <div class="panel-sub">Tap a team to pick the winner</div>
+          <div class="panel-sub" id="picksSubLabel">Bets are hidden until kickoff</div>
           <select id="picksWeekSelect" style="width:auto;min-height:36px;padding:6px 10px;font-size:12px;"></select>
         </div>
       </div>
@@ -788,6 +823,7 @@
         <div>NFCE/NFCN/NFCS/NFCW = NFC East/North/South/West</div>
         <div>All kickoff times are Eastern Time (ET) — a second time only appears when the home team is in a different time zone, showing that team's local time</div>
       </div>
+      <div id="poolStatsBar" style="display:none;"></div>
       <div id="upcomingWrap"><div class="empty">Loading...</div></div>
     </div>
   </div>
@@ -1423,6 +1459,102 @@ async function loadAngles(){
   renderAngles();
 }
 
+// --- Pool / weekly bankroll betting ---
+let BETS = []; // [{week, team_code, amount}], loaded from sc_bets (public read, admin write)
+
+let betsLoaded = false; // guards auto-seeding from firing before the real sc_bets fetch resolves
+async function loadBets(){
+  try{
+    const {data, error} = await db.from('sc_bets').select('*');
+    if(error) throw error;
+    BETS = (data || []).map(r => ({week: r.week, team_code: r.team_code, amount: parseFloat(r.amount)}));
+  }catch(e){
+    console.error('Load bets error', e);
+    BETS = [];
+  }
+  betsLoaded = true;
+  renderUpcoming();
+}
+
+function betAmount(week, teamCode){
+  const b = BETS.find(x => x.week === week && x.team_code === teamCode);
+  return b ? b.amount : 0;
+}
+function weekSpent(week){
+  return BETS.filter(b => b.week === week).reduce((s,b)=> s + b.amount, 0);
+}
+// Approximate ET UTC offset for the regular season (only real transition is the EDT->EST
+// changeover around Nov 1) — good enough for a self-discipline "lock at kickoff" gate, not
+// meant to be to-the-minute precise.
+function kickoffPassed(week, away, home){
+  const gt = GAME_TIMES[`${week}|${away}|${home}`];
+  if(!gt) return false; // TBD games can't be locked — nothing to lock yet
+  const [dateISO, time] = gt;
+  const monthIdx = parseInt(dateISO.slice(5,7), 10) - 1;
+  const offset = (monthIdx === 10 || monthIdx === 11 || monthIdx === 0) ? '-05:00' : '-04:00';
+  const kickoffInstant = new Date(`${dateISO}T${time}:00${offset}`);
+  return new Date() >= kickoffInstant;
+}
+async function adjustBet(week, team, opp, delta){
+  const current = betAmount(week, team);
+  let next = Math.max(0, Math.min(40, current + delta));
+  if(delta > 0){
+    const otherSpent = weekSpent(week) - current - betAmount(week, opp);
+    if(otherSpent + next > 200) return; // would blow the $200 weekly cap
+  }
+  if(next === current) return;
+  try{
+    if(next === 0){
+      const {error} = await db.rpc('sc_remove_bet', {p_week: week, p_team_code: team});
+      if(error) throw error;
+    } else {
+      const {error} = await db.rpc('sc_place_bet', {p_week: week, p_team_code: team, p_amount: next, p_opponent_code: opp});
+      if(error) throw error;
+    }
+    await loadBets();
+  }catch(e){
+    console.error('Save bet error', e);
+    alert('Could not save your bet — check your connection and try again.');
+  }
+}
+// Season-to-date winnings: sum of every graded bet (game already has a final score) that hit.
+function seasonWon(){
+  let total = 0;
+  BETS.forEach(b=>{
+    const g = games.find(gm => gm.week === b.week && (gm.away === b.team_code || gm.home === b.team_code));
+    if(!g) return;
+    const result = resultOf(g);
+    const winner = result === 'home' ? g.home : result === 'away' ? g.away : null;
+    if(winner === b.team_code) total += b.amount;
+  });
+  return total;
+}
+
+// Default starting point for a brand-new week: $5 (the mandatory minimum) on the favorite in
+// every game, using the current Strength Chain spread. Pick-'em games (no favorite) are left
+// for the player to choose. Only fires once, and only if that week genuinely has zero bets yet —
+// never touches a week the player has already started adjusting.
+const seededWeeks = new Set();
+async function seedWeekWithFavorites(week){
+  if(seededWeeks.has(week)) return;
+  seededWeeks.add(week);
+  const weekGames = scheduledGamesForWeek(week);
+  if(weekGames.length === 0) return;
+  if(BETS.some(b => b.week === week)) return;
+  const {weeklyTotals} = computeStandings(games);
+  const latestTotals = weeklyTotals[weeklyTotals.length-1] || weeklyTotals[0];
+  for(const [w, away, home] of weekGames){
+    const sp = computeSpread(away, home, latestTotals, w);
+    if(sp.margin === 0) continue; // true pick 'em — leave it for the player to decide
+    const opp = sp.favorite === home ? away : home;
+    try{
+      const {error} = await db.rpc('sc_place_bet', {p_week: w, p_team_code: sp.favorite, p_amount: 5, p_opponent_code: opp});
+      if(error) throw error;
+    }catch(e){ console.error('Seed bet error', e); }
+  }
+  await loadBets();
+}
+
 async function saveAngleDefault(id, value){
   try{
     const {error} = await db.rpc('sc_set_angle', {p_secret: ADMIN_SECRET, p_id: id, p_points: value});
@@ -1643,6 +1775,7 @@ function setMode(newMode){
     }
   }
   renderAngles();
+  renderUpcoming();
 }
 
 document.getElementById('modeBtn').addEventListener('click', async ()=>{
@@ -1859,20 +1992,6 @@ function renderRankHistory(){
   });
 }
 
-function loadPicks(){
-  try{
-    return JSON.parse(localStorage.getItem('sosPicks') || '{}');
-  }catch(e){
-    return {};
-  }
-}
-function savePick(gameKey, teamCode){
-  const picks = loadPicks();
-  picks[gameKey] = teamCode;
-  try{ localStorage.setItem('sosPicks', JSON.stringify(picks)); }
-  catch(e){ console.error('Could not save pick', e); }
-}
-
 let picksWeek = null; // selected week for the Picks tab; null = not yet auto-detected
 
 function renderUpcoming(){
@@ -1902,7 +2021,6 @@ function renderUpcoming(){
   const weekGames = sortWeekGames(weekGamesRaw);
 
   const ranks = getRankMap(latestTotals);
-  const picks = loadPicks();
   let tbdHeaderShown = false;
   let gameNum = 0;
   wrap.innerHTML = weekGames.map(([w,away,home])=>{
@@ -1917,8 +2035,6 @@ function renderUpcoming(){
     const homeClass = isPush ? 'push' : 'home-row';
     const awayClass = isPush ? 'push' : '';
     const gameKey = `${picksWeek}-${away}-${home}`;
-    const picked = picks[gameKey];
-    const radioName = `pick-${gameKey}`;
     const kickoff = formatKickoff(w, away, home);
     let tbdHeader = '';
     if(!kickoff && !tbdHeaderShown){
@@ -1937,6 +2053,24 @@ function renderUpcoming(){
     const awayDiv = DIVISION_ABBR[TEAM_DIVISION[away]] || '';
     const homeSOS = (latestTotals[home] ?? 0).toFixed(1);
     const awaySOS = (latestTotals[away] ?? 0).toFixed(1);
+
+    // The bet amount itself IS the pick now — no more free radio pick. The player (admin) always
+    // The bet amount itself is the pick — visible and editable by anyone, before that game's real
+    // kickoff. Once kickoff passes it locks in place (still visible, just read-only).
+    const locked = kickoffPassed(w, away, home);
+    const stepper = (team, opp) => {
+      const amt = betAmount(w, team);
+      if(locked) return `<div class="bet-locked">${amt > 0 ? `$${amt} locked` : '—'}</div>`;
+      return `
+        <div class="bet-stepper">
+          <button type="button" class="bet-dec" data-week="${w}" data-team="${team}" data-opp="${opp}" ${amt<=0?'disabled':''}>−</button>
+          <span class="bet-amt ${amt===0?'zero':''}">$${amt}</span>
+          <button type="button" class="bet-inc" data-week="${w}" data-team="${team}" data-opp="${opp}" ${amt>=40?'disabled':''}>+</button>
+        </div>`;
+    };
+    const homeRight = stepper(home, away);
+    const awayRight = stepper(away, home);
+
     return `
       ${tbdHeader}
       <div class="sb-game">
@@ -1944,25 +2078,43 @@ function renderUpcoming(){
           <div>${headerLine1}</div>
           ${headerLine2 ? `<div>${headerLine2}</div>` : ''}
         </div>
-        <label class="pick-option ${homeClass}">
-          <input type="radio" name="${radioName}" value="${home}" data-gamekey="${gameKey}" ${picked===home?'checked':''}>
+        <div class="pick-option ${homeClass}">
           <span class="sb-code">${homeSOS}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]}) <span class="sb-div">${homeDiv} · ${homeFieldType}</span></span>
           <span class="pick-line">${homeLine}</span>
-        </label>
-        <label class="pick-option ${awayClass}">
-          <input type="radio" name="${radioName}" value="${away}" data-gamekey="${gameKey}" ${picked===away?'checked':''}>
+          ${homeRight}
+        </div>
+        <div class="pick-option ${awayClass}">
           <span class="sb-code">${awaySOS}</span><span class="sb-name">${TEAM_NAME[away]} (${ranks[away]}) <span class="sb-div">${awayDiv} · ${awayFieldType}</span></span>
           <span class="pick-line">${awayLine}</span>
-        </label>
+          ${awayRight}
+        </div>
       </div>
     `;
   }).join('');
 
-  wrap.querySelectorAll('.pick-option input[type=radio]').forEach(input=>{
-    input.addEventListener('change', ()=>{
-      savePick(input.dataset.gamekey, input.value);
-    });
+  wrap.querySelectorAll('.bet-inc').forEach(btn=>{
+    btn.addEventListener('click', ()=> adjustBet(parseInt(btn.dataset.week,10), btn.dataset.team, btn.dataset.opp, 5));
   });
+  wrap.querySelectorAll('.bet-dec').forEach(btn=>{
+    btn.addEventListener('click', ()=> adjustBet(parseInt(btn.dataset.week,10), btn.dataset.team, btn.dataset.opp, -5));
+  });
+
+  const subLabel = document.getElementById('picksSubLabel');
+  if(subLabel) subLabel.textContent = 'Enter your bet for each game — locks at kickoff';
+
+  const statsBar = document.getElementById('poolStatsBar');
+  if(statsBar){
+    const won = seasonWon();
+    const spent = weekSpent(picksWeek);
+    const remaining = 200 - spent;
+    statsBar.style.display = 'flex';
+    statsBar.innerHTML = `
+      <div><span class="label">Season Total Won</span><span class="val ok">$${won}</span></div>
+      <div class="right"><span class="label">Remaining to Bet — Wk ${picksWeek}</span><span class="val ${remaining===0?'ok':'warn'}">$${remaining}</span></div>
+    `;
+  }
+
+  if(betsLoaded) seedWeekWithFavorites(picksWeek);
 }
 
 function render(){
@@ -2058,6 +2210,7 @@ if(angleResetBtn) angleResetBtn.addEventListener('click', ()=>{
 
 loadSettings().then(loadGames);
 loadAngles();
+loadBets();
 
 // Live sync: reload whenever anyone (admin, any device) changes the underlying data.
 db.channel('sc-live-sync')
@@ -2065,6 +2218,7 @@ db.channel('sc-live-sync')
   .on('postgres_changes', {event:'*', schema:'public', table:'sc_settings'}, ()=>{ loadSettings(); })
   .on('postgres_changes', {event:'*', schema:'public', table:'sc_adjustments'}, ()=>{ loadSettings(); })
   .on('postgres_changes', {event:'*', schema:'public', table:'sc_angles'}, ()=>{ loadAngles(); })
+  .on('postgres_changes', {event:'*', schema:'public', table:'sc_bets'}, ()=>{ loadBets(); })
   .subscribe();
 </script>
 </body>
