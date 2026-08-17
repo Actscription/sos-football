@@ -830,6 +830,7 @@
         <div>NFCE/NFCN/NFCS/NFCW = NFC East/North/South/West</div>
         <div>All kickoff times are Eastern Time (ET) — a second time only appears when the home team is in a different time zone, showing that team's local time</div>
       </div>
+      <div class="panel-sub" id="poolRuleLine" style="display:none;margin-bottom:8px;">Every week: $200 minimum bet, up to $400 max if your Bank allows it</div>
       <div id="poolStatsBar" style="display:none;"></div>
       <div id="upcomingWrap"><div class="empty">Loading...</div></div>
     </div>
@@ -1592,24 +1593,29 @@ function weekWinningsSoFar(week){
 }
 
 // Default starting point for a brand-new week: $5 (the mandatory minimum) on the favorite in
-// every game, using the current Strength Chain spread. Pick-'em games (no favorite) are left
-// for the player to choose. Only fires once, and only if that week genuinely has zero bets yet —
-// never touches a week the player has already started adjusting.
-const seededWeeks = new Set();
-// Default starting point for a brand-new week: $5 (the mandatory minimum) on the favorite in
 // every single game — no exceptions. A true pick-'em (no favorite) defaults to the home team,
 // which forces the player to look closely and correct it if they disagree, rather than leaving
 // the game unfunded. This guarantees every game always has money on exactly one side from the
 // moment a week is opened, so the two-teams-at-$0 state can never actually occur.
+let seedingInFlight = false; // avoid overlapping seed runs across rapid re-renders
+const attemptedSeeds = new Set(); // "week|away|home" tried this session — guarantees this never retries forever
 async function seedWeekWithFavorites(week){
-  if(seededWeeks.has(week)) return;
-  seededWeeks.add(week);
+  if(seedingInFlight) return;
   const weekGames = scheduledGamesForWeek(week);
   if(weekGames.length === 0) return;
-  if(BETS.some(b => b.week === week)) return;
+  // Check each game individually rather than gating on the whole week — this repairs any single
+  // game that's stuck unfunded (e.g. leftover from before this fix) without touching games the
+  // player has already placed a real bet on. Each game is only ever attempted once per session,
+  // so a failed write can't turn into an infinite retry loop.
+  const unfunded = weekGames.filter(([w,away,home]) =>
+    betAmount(w,home) === 0 && betAmount(w,away) === 0 && !attemptedSeeds.has(`${w}|${away}|${home}`)
+  );
+  if(unfunded.length === 0) return;
+  seedingInFlight = true;
   const {weeklyTotals} = computeStandings(games);
   const latestTotals = weeklyTotals[weeklyTotals.length-1] || weeklyTotals[0];
-  for(const [w, away, home] of weekGames){
+  for(const [w, away, home] of unfunded){
+    attemptedSeeds.add(`${w}|${away}|${home}`);
     const sp = computeSpread(away, home, latestTotals, w);
     const pick = sp.margin === 0 ? home : sp.favorite; // pick 'em -> default to home team
     const opp = pick === home ? away : home;
@@ -1618,6 +1624,7 @@ async function seedWeekWithFavorites(week){
       if(error) throw error;
     }catch(e){ console.error('Seed bet error', e); }
   }
+  seedingInFlight = false;
   await loadBets();
 }
 
@@ -2173,6 +2180,8 @@ function renderUpcoming(){
   if(subLabel) subLabel.textContent = 'Enter your bet for each game — locks at kickoff';
 
   const statsBar = document.getElementById('poolStatsBar');
+  const ruleLine = document.getElementById('poolRuleLine');
+  if(ruleLine) ruleLine.style.display = 'block';
   if(statsBar){
     const bank = seasonWon();
     const cap = weeklyCap(picksWeek); // $200 minimum, up to $400 max if reserve allows
