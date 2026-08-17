@@ -1712,7 +1712,7 @@ function renderRankHistory(){
     </tr>
   `;
 
-  const body = rows.map(r=>{
+  const body = rows.map((r, idx)=>{
     const cells = [];
     let prev = null;
     for(let i=0; i<totalCols; i++){
@@ -1720,7 +1720,7 @@ function renderRankHistory(){
       cells.push(arrowCell(rank, prev));
       if(rank != null) prev = rank;
     }
-    const rowClass = r.latest % 2 === 0 ? ' class="rh-row-even"' : '';
+    const rowClass = idx % 2 === 1 ? ' class="rh-row-even"' : '';
     return `<tr${rowClass}><td class="rh-team-cell">${r.code}</td>${cells.join('')}</tr>`;
   }).join('');
 
