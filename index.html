@@ -1500,7 +1500,7 @@ async function adjustBet(week, team, opp, delta){
   let next = Math.max(0, Math.min(40, current + delta));
   if(delta > 0){
     const otherSpent = weekSpent(week) - current - betAmount(week, opp);
-    if(otherSpent + next > 200) return; // would blow the $200 weekly cap
+    if(otherSpent + next > weeklyCap(week)) return; // would exceed $200 base + available reserve
   }
   if(next === current) return;
   try{
@@ -1528,6 +1528,35 @@ function seasonWon(){
     if(winner === b.team_code) total += b.amount;
   });
   return total;
+}
+
+// Every player always gets a fresh $200 baseline every week (mandatory, never touched by this).
+// On top of that they can optionally press up to $200 of their own accumulated winnings ("reserve")
+// each week — genuinely at risk, same as any other bet. Since a bet is just an amount on a team
+// regardless of which dollars funded it, "reserve used in week W" is simply whatever was staked
+// beyond the $200 baseline that week — fully derivable from BETS, no separate ledger needed.
+function seasonWonBefore(week){
+  let total = 0;
+  BETS.forEach(b=>{
+    if(b.week >= week) return;
+    const g = games.find(gm => gm.week === b.week && (gm.away === b.team_code || gm.home === b.team_code));
+    if(!g) return;
+    const result = resultOf(g);
+    const winner = result === 'home' ? g.home : result === 'away' ? g.away : null;
+    if(winner === b.team_code) total += b.amount;
+  });
+  return total;
+}
+function reserveUsedInWeek(week){
+  return Math.max(0, weekSpent(week) - 200);
+}
+function reserveAvailableForWeek(week){
+  let reserveSpentSoFar = 0;
+  for(let w = 1; w < week; w++) reserveSpentSoFar += reserveUsedInWeek(w);
+  return Math.max(0, seasonWonBefore(week) - reserveSpentSoFar);
+}
+function weeklyCap(week){
+  return 200 + Math.min(200, reserveAvailableForWeek(week));
 }
 
 // Default starting point for a brand-new week: $5 (the mandatory minimum) on the favorite in
@@ -2105,12 +2134,15 @@ function renderUpcoming(){
   const statsBar = document.getElementById('poolStatsBar');
   if(statsBar){
     const won = seasonWon();
+    const cap = weeklyCap(picksWeek);
+    const reserveAvail = Math.min(200, reserveAvailableForWeek(picksWeek));
     const spent = weekSpent(picksWeek);
-    const remaining = 200 - spent;
+    const remaining = cap - spent;
     statsBar.style.display = 'flex';
     statsBar.innerHTML = `
       <div><span class="label">Season Total Won</span><span class="val ok">$${won}</span></div>
-      <div class="right"><span class="label">Remaining to Bet — Wk ${picksWeek}</span><span class="val ${remaining===0?'ok':'warn'}">$${remaining}</span></div>
+      <div><span class="label">Reserve Available — Wk ${picksWeek}</span><span class="val">$${reserveAvail}</span></div>
+      <div class="right"><span class="label">Remaining to Bet (of $${cap})</span><span class="val ${remaining===0?'ok':'warn'}">$${remaining}</span></div>
     `;
   }
 
