@@ -461,22 +461,24 @@
 
   /* Pool / betting */
   .pool-stats-bar{
-    display:flex;
-    justify-content:space-between;
-    gap:12px;
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:8px;
     background:#F4F1E8;
     border:1px solid var(--line);
     border-radius:10px;
-    padding:10px 16px;
+    padding:12px 8px;
     margin-bottom:14px;
     font-family:'IBM Plex Mono',monospace;
-    font-size:12px;
   }
-  .pool-stats-bar .label{color:var(--muted);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;display:block;margin-bottom:2px;}
+  .pool-stats-bar .stat{text-align:center;}
+  .pool-stats-bar .label{color:var(--muted);font-size:9px;letter-spacing:.05em;text-transform:uppercase;display:block;margin-bottom:3px;}
   .pool-stats-bar .val{font-size:16px;font-weight:700;color:var(--text);}
   .pool-stats-bar .val.ok{color:#1E7A3D;}
   .pool-stats-bar .val.warn{color:var(--strength-amber);}
-  .pool-stats-bar .right{text-align:right;}
+  @media (max-width:420px){
+    .pool-stats-bar{grid-template-columns:1fr;gap:10px;}
+  }
   .bet-stepper{
     display:flex;
     align-items:center;
@@ -510,6 +512,11 @@
     font-size:11px;
     color:var(--muted);
     text-align:right;
+  }
+  .bet-warning{
+    color:#B33A2E;
+    font-weight:600;
+    margin-top:2px;
   }
 
   /* Standings */
@@ -1497,6 +1504,20 @@ function kickoffPassed(week, away, home){
 }
 async function adjustBet(week, team, opp, delta){
   const current = betAmount(week, team);
+  // Decrementing the last $5 off a team would leave this game with nothing bet on either side.
+  // Instead of allowing that, flip the pick to the opponent at the $5 minimum — every game always
+  // has to have money on exactly one team.
+  if(delta < 0 && current - 5 <= 0){
+    try{
+      const {error} = await db.rpc('sc_place_bet', {p_week: week, p_team_code: opp, p_amount: 5, p_opponent_code: team});
+      if(error) throw error;
+      await loadBets();
+    }catch(e){
+      console.error('Flip bet error', e);
+      alert('Could not save your bet — check your connection and try again.');
+    }
+    return;
+  }
   let next = Math.max(0, Math.min(40, current + delta));
   if(delta > 0){
     const otherSpent = weekSpent(week) - current - betAmount(week, opp);
@@ -1558,12 +1579,28 @@ function reserveAvailableForWeek(week){
 function weeklyCap(week){
   return 200 + Math.min(200, reserveAvailableForWeek(week));
 }
+function weekWinningsSoFar(week){
+  let total = 0;
+  BETS.filter(b => b.week === week).forEach(b=>{
+    const g = games.find(gm => gm.week === week && (gm.away === b.team_code || gm.home === b.team_code));
+    if(!g) return;
+    const result = resultOf(g);
+    const winner = result === 'home' ? g.home : result === 'away' ? g.away : null;
+    if(winner === b.team_code) total += b.amount;
+  });
+  return total;
+}
 
 // Default starting point for a brand-new week: $5 (the mandatory minimum) on the favorite in
 // every game, using the current Strength Chain spread. Pick-'em games (no favorite) are left
 // for the player to choose. Only fires once, and only if that week genuinely has zero bets yet —
 // never touches a week the player has already started adjusting.
 const seededWeeks = new Set();
+// Default starting point for a brand-new week: $5 (the mandatory minimum) on the favorite in
+// every single game — no exceptions. A true pick-'em (no favorite) defaults to the home team,
+// which forces the player to look closely and correct it if they disagree, rather than leaving
+// the game unfunded. This guarantees every game always has money on exactly one side from the
+// moment a week is opened, so the two-teams-at-$0 state can never actually occur.
 async function seedWeekWithFavorites(week){
   if(seededWeeks.has(week)) return;
   seededWeeks.add(week);
@@ -1574,10 +1611,10 @@ async function seedWeekWithFavorites(week){
   const latestTotals = weeklyTotals[weeklyTotals.length-1] || weeklyTotals[0];
   for(const [w, away, home] of weekGames){
     const sp = computeSpread(away, home, latestTotals, w);
-    if(sp.margin === 0) continue; // true pick 'em — leave it for the player to decide
-    const opp = sp.favorite === home ? away : home;
+    const pick = sp.margin === 0 ? home : sp.favorite; // pick 'em -> default to home team
+    const opp = pick === home ? away : home;
     try{
-      const {error} = await db.rpc('sc_place_bet', {p_week: w, p_team_code: sp.favorite, p_amount: 5, p_opponent_code: opp});
+      const {error} = await db.rpc('sc_place_bet', {p_week: w, p_team_code: pick, p_amount: 5, p_opponent_code: opp});
       if(error) throw error;
     }catch(e){ console.error('Seed bet error', e); }
   }
@@ -2083,10 +2120,13 @@ function renderUpcoming(){
     const homeSOS = (latestTotals[home] ?? 0).toFixed(1);
     const awaySOS = (latestTotals[away] ?? 0).toFixed(1);
 
-    // The bet amount itself IS the pick now — no more free radio pick. The player (admin) always
     // The bet amount itself is the pick — visible and editable by anyone, before that game's real
-    // kickoff. Once kickoff passes it locks in place (still visible, just read-only).
+    // kickoff. Once kickoff passes it locks in place (still visible, just read-only). Every game
+    // must always have money on exactly one team; adjustBet's decrement-flip enforces that once a
+    // bet has been started, but a game nobody has touched yet (e.g. a skipped pick-'em) can still
+    // sit at $0/$0 — flag that clearly rather than let it slip through unbet.
     const locked = kickoffPassed(w, away, home);
+    const unfunded = !locked && betAmount(w, home) === 0 && betAmount(w, away) === 0;
     const stepper = (team, opp) => {
       const amt = betAmount(w, team);
       if(locked) return `<div class="bet-locked">${amt > 0 ? `$${amt} locked` : '—'}</div>`;
@@ -2106,6 +2146,7 @@ function renderUpcoming(){
         <div class="sb-game-header">
           <div>${headerLine1}</div>
           ${headerLine2 ? `<div>${headerLine2}</div>` : ''}
+          ${unfunded ? `<div class="bet-warning">⚠ No bet placed on this game yet</div>` : ''}
         </div>
         <div class="pick-option ${homeClass}">
           <span class="sb-code">${homeSOS}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]}) <span class="sb-div">${homeDiv} · ${homeFieldType}</span></span>
@@ -2133,16 +2174,16 @@ function renderUpcoming(){
 
   const statsBar = document.getElementById('poolStatsBar');
   if(statsBar){
-    const won = seasonWon();
-    const cap = weeklyCap(picksWeek);
-    const reserveAvail = Math.min(200, reserveAvailableForWeek(picksWeek));
+    const bank = seasonWon();
+    const cap = weeklyCap(picksWeek); // $200 minimum, up to $400 max if reserve allows
+    const weekWin = weekWinningsSoFar(picksWeek);
     const spent = weekSpent(picksWeek);
     const remaining = cap - spent;
-    statsBar.style.display = 'flex';
+    statsBar.style.display = 'grid';
     statsBar.innerHTML = `
-      <div><span class="label">Season Total Won</span><span class="val ok">$${won}</span></div>
-      <div><span class="label">Reserve Available — Wk ${picksWeek}</span><span class="val">$${reserveAvail}</span></div>
-      <div class="right"><span class="label">Remaining to Bet (of $${cap})</span><span class="val ${remaining===0?'ok':'warn'}">$${remaining}</span></div>
+      <div class="stat"><span class="label">Bank</span><span class="val ok">$${bank}</span></div>
+      <div class="stat"><span class="label">Week ${picksWeek} Winnings</span><span class="val ${weekWin>0?'ok':''}">$${weekWin}</span></div>
+      <div class="stat"><span class="label">Bets Remaining (of $${cap})</span><span class="val ${remaining===0?'ok':'warn'}">$${remaining}</span></div>
     `;
   }
 
