@@ -1671,6 +1671,7 @@ document.getElementById('modeBtn').addEventListener('click', async ()=>{
   modeBtn.disabled = false;
 });
 
+let scoreboardWeek = 'all'; // 'all' or a week number; per-session, not persisted
 let standingsSortMode = 'division'; // 'division' or 'sos' — per-session, not persisted
 
 function renderStandings(){
