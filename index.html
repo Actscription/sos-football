@@ -443,7 +443,21 @@
     color:var(--muted);
     padding:7px 12px 0;
   }
-  .sb-kickoff{color:var(--strength-amber);text-transform:none;letter-spacing:normal;}
+  .sb-game-header{
+    background:#FDF6DC;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:.04em;
+    color:#8A6D00;
+    padding:8px 12px;
+    border-bottom:1px solid var(--line);
+  }
+  .sb-div{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    color:var(--muted);
+    text-transform:none;
+  }
   .sb-row{
     display:flex;
     justify-content:space-between;
@@ -975,11 +989,23 @@ function formatKickoff(week, away, home){
   const d = new Date(dateISO+'T00:00:00Z');
   const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dateLabel = `${days[d.getUTCDay()]} ${months[d.getUTCMonth()]} ${d.getUTCDate()}`;
+  const fmtTime = (hh, mm)=>{
+    const ampm = hh >= 12 ? 'PM' : 'AM';
+    let h12 = hh % 12; if(h12 === 0) h12 = 12;
+    const mmStr = mm === 0 ? '' : ':' + String(mm).padStart(2,'0');
+    return `${h12}${mmStr} ${ampm}`;
+  };
   const [hh, mm] = time.split(':').map(Number);
-  const ampm = hh >= 12 ? 'PM' : 'AM';
-  let h12 = hh % 12; if(h12 === 0) h12 = 12;
-  const mmStr = mm === 0 ? '' : ':' + String(mm).padStart(2,'0');
-  return `${days[d.getUTCDay()]} ${months[d.getUTCMonth()]} ${d.getUTCDate()} · ${h12}${mmStr} ${ampm} ET`;
+  const etStr = `${fmtTime(hh, mm)} ET`;
+  const hz = TEAM_ZONE[home];
+  const offset = ZONE_ET_OFFSET[hz] || 0;
+  let localStr = null;
+  if(offset !== 0){
+    let localHH = (hh + offset + 24) % 24;
+    localStr = `${fmtTime(localHH, mm)} Local`;
+  }
+  return {dateLabel, etStr, localStr, fieldType: fieldTypeFor(home)};
 }
 function alreadyEntered(w, away, home){
   return games.some(g=>g.week===w && g.away===away && g.home===home);
@@ -1428,10 +1454,22 @@ const TRAVEL_MAP = { // "away-zone>home-zone" -> angle id (only the 6 pairs we k
   'Central>Pacific':'T5', 'Mountain>Pacific':'T6',
 };
 const ZONE_SORT_ORDER = {Pacific:0, Mountain:1, Central:2, Eastern:3};
+// Hours to subtract from ET to get each zone's local time (approximate, ignores AZ's no-DST quirk).
+const ZONE_ET_OFFSET = {Eastern:0, Central:-1, Mountain:-2, Pacific:-3};
 
-// Verified kickoff date/time for each scheduled game, "week|away|home" -> [dateISO, "HH:MM" ET 24h].
-// Weeks 1-15 confirmed from the official 2026 schedule release. Weeks 16-18 are partially TBD —
-// the NFL hasn't announced several flex-scheduled matchups yet; those simply have no entry here.
+// Verified 2026 stadium facts. Dome/indoor stadiums (SoFi shared by LAC/LAR):
+const DOME_TEAMS = new Set(['ARI','ATL','DAL','DET','HOU','IND','LV','LAC','LAR','MIN','NO']);
+// Turf-surface home stadiums for the 2026 season — note Buffalo's new Highmark Stadium
+// opened in 2026 with grass, switching off turf, so BUF is NOT in this set.
+const TURF_TEAMS = new Set(['ATL','CAR','CIN','DAL','DET','HOU','IND','LAC','LAR','MIN','NE','NO','NYG','NYJ','SEA','TEN']);
+function fieldTypeFor(homeCode){
+  if(DOME_TEAMS.has(homeCode)) return 'Dome';
+  if(TURF_TEAMS.has(homeCode)) return 'Turf';
+  return 'Grass';
+}
+const DIVISION_ABBR = {'AFC East':'AFCE','AFC North':'AFCN','AFC South':'AFCS','AFC West':'AFCW',
+  'NFC East':'NFCE','NFC North':'NFCN','NFC South':'NFCS','NFC West':'NFCW'};
+
 const GAME_TIMES = GAME_TIMES_DATA;
 
 function activeAngle(id){
@@ -1468,6 +1506,13 @@ function computeAngleAdjustment(away, home, week){
   const az = TEAM_ZONE[away], hz = TEAM_ZONE[home];
   const travelId = TRAVEL_MAP[`${az}>${hz}`];
   if(travelId) adj -= activeAngle(travelId); // travel angle points are already signed from the away team's perspective
+
+  // Stadium/Surface — these can stack with each other (e.g. a dome+turf team on the road
+  // is both a dome team facing open air AND a turf team facing grass at the same time).
+  const homeIsGrass = !DOME_TEAMS.has(home) && !TURF_TEAMS.has(home);
+  if(DOME_TEAMS.has(away) && homeIsGrass) adj -= activeAngle('S2');
+  if(TURF_TEAMS.has(away) && homeIsGrass) adj -= activeAngle('S3');
+  if(home === 'DEN' && away !== 'DEN') adj -= activeAngle('S4');
 
   const gt = week ? GAME_TIMES[`${week}|${away}|${home}`] : null;
   if(gt){
@@ -1748,18 +1793,23 @@ function renderUpcoming(){
       tbdHeader = `<div class="sb-week">Times TBD</div>`;
       tbdHeaderShown = true;
     }
+    const headerLine = kickoff
+      ? `Game ${gameNum} · ${kickoff.dateLabel} · ${kickoff.etStr}${kickoff.localStr ? ` · ${kickoff.localStr}` : ''} · ${kickoff.fieldType}`
+      : `Game ${gameNum}`;
+    const homeDiv = DIVISION_ABBR[TEAM_DIVISION[home]] || '';
+    const awayDiv = DIVISION_ABBR[TEAM_DIVISION[away]] || '';
     return `
       ${tbdHeader}
       <div class="sb-game">
-        <div class="sb-game-num">Game ${gameNum}${kickoff ? ` <span class="sb-kickoff">${kickoff}</span>` : ''}</div>
+        <div class="sb-game-header">${headerLine}</div>
         <label class="pick-option ${homeClass}">
           <input type="radio" name="${radioName}" value="${home}" data-gamekey="${gameKey}" ${picked===home?'checked':''}>
-          <span class="sb-code">${home}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]})</span>
+          <span class="sb-code">${home}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]}) <span class="sb-div">${homeDiv}</span></span>
           <span class="pick-line">${homeLine}</span>
         </label>
         <label class="pick-option ${awayClass}">
           <input type="radio" name="${radioName}" value="${away}" data-gamekey="${gameKey}" ${picked===away?'checked':''}>
-          <span class="sb-code">${away}</span><span class="sb-name">${TEAM_NAME[away]} (${ranks[away]})</span>
+          <span class="sb-code">${away}</span><span class="sb-name">${TEAM_NAME[away]} (${ranks[away]}) <span class="sb-div">${awayDiv}</span></span>
           <span class="pick-line">${awayLine}</span>
         </label>
       </div>
