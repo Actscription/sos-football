@@ -460,24 +460,47 @@
   }
 
   /* Pool / betting */
-  .pool-stats-bar{
-    display:grid;
-    grid-template-columns:1fr 1fr 1fr;
-    gap:8px;
-    background:#F4F1E8;
-    border:1px solid var(--line);
-    border-radius:10px;
-    padding:12px 8px;
+  .pool-table{
+    width:100%;
+    border-collapse:collapse;
     margin-bottom:14px;
     font-family:'IBM Plex Mono',monospace;
+    border:2px dashed #2E8B7A;
   }
-  .pool-stats-bar .stat{text-align:center;}
-  .pool-stats-bar .label{color:var(--muted);font-size:9px;letter-spacing:.05em;text-transform:uppercase;display:block;margin-bottom:3px;}
-  .pool-stats-bar .val{font-size:16px;font-weight:700;color:var(--text);}
-  .pool-stats-bar .val.ok{color:#1E7A3D;}
-  .pool-stats-bar .val.warn{color:var(--strength-amber);}
-  @media (max-width:420px){
-    .pool-stats-bar{grid-template-columns:1fr;gap:10px;}
+  .pool-table th, .pool-table td{
+    border:1px solid var(--line);
+    padding:8px 6px;
+    text-align:center;
+  }
+  .pool-table-title{
+    background:#FDF6DC;
+    color:var(--text);
+    font-weight:700;
+    font-size:12px;
+    line-height:1.5;
+    padding:10px 12px !important;
+    border:none !important;
+    border-bottom:2px dashed #2E8B7A !important;
+  }
+  .pool-table .col-label{
+    font-size:10px;
+    letter-spacing:.03em;
+    color:var(--muted);
+    font-weight:600;
+    background:#fff;
+    line-height:1.3;
+  }
+  .pool-table .col-val{
+    font-size:17px;
+    font-weight:700;
+    color:var(--text);
+    background:#fff;
+  }
+  .pool-table .col-val.ok{color:#1E7A3D;}
+  .pool-table .col-val.warn{color:var(--strength-amber);}
+  @media (max-width:480px){
+    .pool-table{font-size:10px;}
+    .pool-table .col-val{font-size:14px;}
   }
   .bet-stepper{
     display:flex;
@@ -830,7 +853,6 @@
         <div>NFCE/NFCN/NFCS/NFCW = NFC East/North/South/West</div>
         <div>All kickoff times are Eastern Time (ET) — a second time only appears when the home team is in a different time zone, showing that team's local time</div>
       </div>
-      <div class="panel-sub" id="poolRuleLine" style="display:none;margin-bottom:8px;">Every week: $200 minimum bet, up to $400 max if your Bank allows it</div>
       <div id="poolStatsBar" style="display:none;"></div>
       <div id="upcomingWrap"><div class="empty">Loading...</div></div>
     </div>
@@ -2180,19 +2202,35 @@ function renderUpcoming(){
   if(subLabel) subLabel.textContent = 'Enter your bet for each game — locks at kickoff';
 
   const statsBar = document.getElementById('poolStatsBar');
-  const ruleLine = document.getElementById('poolRuleLine');
-  if(ruleLine) ruleLine.style.display = 'block';
   if(statsBar){
     const bank = seasonWon();
-    const cap = weeklyCap(picksWeek); // $200 minimum, up to $400 max if reserve allows
-    const weekWin = weekWinningsSoFar(picksWeek);
+    const prevWeekWin = picksWeek > 1 ? weekWinningsSoFar(picksWeek - 1) : 0;
     const spent = weekSpent(picksWeek);
-    const remaining = cap - spent;
-    statsBar.style.display = 'grid';
+    const minRemaining = Math.max(0, 200 - spent);
+    const reserveCap = Math.min(200, reserveAvailableForWeek(picksWeek));
+    const reserveUsed = Math.max(0, spent - 200);
+    const bankrollRemaining = Math.max(0, reserveCap - reserveUsed);
+    statsBar.style.display = 'block';
     statsBar.innerHTML = `
-      <div class="stat"><span class="label">Bank</span><span class="val ok">$${bank}</span></div>
-      <div class="stat"><span class="label">Week ${picksWeek} Winnings</span><span class="val ${weekWin>0?'ok':''}">$${weekWin}</span></div>
-      <div class="stat"><span class="label">Bets Remaining (of $${cap})</span><span class="val ${remaining===0?'ok':'warn'}">$${remaining}</span></div>
+      <table class="pool-table">
+        <thead>
+          <tr><th colspan="4" class="pool-table-title">Every week: $200 minimum bet, up to $400 max if your Bank allows it</th></tr>
+          <tr>
+            <th class="col-label">Bank</th>
+            <th class="col-label">Previous Week<br>Winnings</th>
+            <th class="col-label">$200 Minimum<br>Remaining</th>
+            <th class="col-label">$200 Bankroll<br>Remaining</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="col-val ok">$${bank}</td>
+            <td class="col-val ${prevWeekWin>0?'ok':''}">$${prevWeekWin}</td>
+            <td class="col-val ${minRemaining===0?'ok':'warn'}">$${minRemaining}</td>
+            <td class="col-val">$${bankrollRemaining}</td>
+          </tr>
+        </tbody>
+      </table>
     `;
   }
 
