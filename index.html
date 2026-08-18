@@ -460,7 +460,7 @@
   }
 
   /* Team detail modal */
-  .rh-team-cell, .standings-div-code, .sb-code{ cursor:pointer; }
+  .rh-team-cell, .standings-row, .pick-option{ cursor:pointer; }
   .team-modal-overlay{
     position:fixed;
     inset:0;
@@ -2147,7 +2147,7 @@ function renderStandings(){
   const recordCell = r => `<span class="standings-record">${r.w}-${r.l}${r.t ? `-${r.t}` : ''}</span>`;
   const sosCell = r => `<span class="standings-sos">${r.sos.toFixed(1)}</span>`;
   const row = r => `
-    <div class="standings-row">
+    <div class="standings-row" data-team="${r.code}">
       <div class="standings-div-code" data-team="${r.code}">${r.code}</div>
       <div>${r.name}</div>
       ${recordCell(r)}
@@ -2404,13 +2404,13 @@ function renderUpcoming(){
           ${headerLine2 ? `<div>${headerLine2}</div>` : ''}
           ${unfunded ? `<div class="bet-warning">⚠ No bet placed on this game yet</div>` : ''}
         </div>
-        <div class="pick-option ${homeClass}">
-          <span class="sb-code" data-team="${home}">${homeSOS}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]}) <span class="sb-div">${homeDiv} · ${homeFieldType}</span></span>
+        <div class="pick-option ${homeClass}" data-team="${home}">
+          <span class="sb-code">${homeSOS}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]}) <span class="sb-div">${homeDiv} · ${homeFieldType}</span></span>
           <span class="pick-line">${homeLine}</span>
           ${homeRight}
         </div>
-        <div class="pick-option ${awayClass}">
-          <span class="sb-code" data-team="${away}">${awaySOS}</span><span class="sb-name">${TEAM_NAME[away]} (${ranks[away]}) <span class="sb-div">${awayDiv} · ${awayFieldType}</span></span>
+        <div class="pick-option ${awayClass}" data-team="${away}">
+          <span class="sb-code">${awaySOS}</span><span class="sb-name">${TEAM_NAME[away]} (${ranks[away]}) <span class="sb-div">${awayDiv} · ${awayFieldType}</span></span>
           <span class="pick-line">${awayLine}</span>
           ${awayRight}
         </div>
@@ -2419,10 +2419,10 @@ function renderUpcoming(){
   }).join('');
 
   wrap.querySelectorAll('.bet-inc').forEach(btn=>{
-    btn.addEventListener('click', ()=> adjustBet(parseInt(btn.dataset.week,10), btn.dataset.team, btn.dataset.opp, 5));
+    btn.addEventListener('click', (e)=>{ e.stopPropagation(); adjustBet(parseInt(btn.dataset.week,10), btn.dataset.team, btn.dataset.opp, 5); });
   });
   wrap.querySelectorAll('.bet-dec').forEach(btn=>{
-    btn.addEventListener('click', ()=> adjustBet(parseInt(btn.dataset.week,10), btn.dataset.team, btn.dataset.opp, -5));
+    btn.addEventListener('click', (e)=>{ e.stopPropagation(); adjustBet(parseInt(btn.dataset.week,10), btn.dataset.team, btn.dataset.opp, -5); });
   });
 
   const subLabel = document.getElementById('picksSubLabel');
