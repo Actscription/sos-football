@@ -1085,6 +1085,33 @@
         How much of each team's final 2025 rating counts as their Week 1 2026 starting point.
         0% = everyone starts at zero (Week 1 spreads become flat home-field-only). 100% = full carryover.
       </div>
+
+      <div class="angle-cat-head" style="margin-top:26px;">Pick Lock Schedule <span style="color:var(--muted);text-transform:none;letter-spacing:normal;">— admin-only, applies to every player and SOS equally</span></div>
+      <div class="panel-sub" style="margin-bottom:10px;">
+        A whole week's bets lock at once, rather than game by game — otherwise a player could see how
+        an early game (like Thursday night) went, or how SOS bet on it, before finishing the rest of
+        their own week. Defaults reflect the earliest a game can kick off (Wednesday) and the latest
+        (Monday Night Football).
+      </div>
+      <label for="lockDaySelect">Picks lock for the week starting</label>
+      <div style="display:flex;gap:8px;">
+        <select id="lockDaySelect" style="flex:1;">
+          <option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option>
+          <option value="3" selected>Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option>
+        </select>
+        <input type="number" id="lockHourInput" min="0" max="23" value="0" style="width:80px;" title="Hour (0-23, ET)">
+      </div>
+      <div class="panel-sub" style="margin-top:8px;margin-bottom:16px;">Hour is 0-23, Eastern Time (0 = midnight).</div>
+
+      <label for="closeDaySelect">Previous week considered closed after</label>
+      <div style="display:flex;gap:8px;">
+        <select id="closeDaySelect" style="flex:1;">
+          <option value="0">Sunday</option><option value="1" selected>Monday</option><option value="2">Tuesday</option>
+          <option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option>
+        </select>
+        <input type="number" id="closeHourInput" min="0" max="23" value="0" style="width:80px;" title="Hour (0-23, ET)">
+      </div>
+      <div class="panel-sub" style="margin-top:8px;">A reminder marker for the admin — the point by which that week's scores should be fully entered.</div>
     </div>
   </div>
 
@@ -1371,6 +1398,10 @@ async function loadSettings(){
       if(isNaN(val)) return;
       if(row.key === 'damping' && val >= 0 && val <= 1) DAMPING = val;
       if(row.key === 'carryover_pct' && val >= 0 && val <= 100) CARRYOVER_PCT = val;
+      if(row.key === 'lock_day' && val >= 0 && val <= 6) LOCK_DAY = val;
+      if(row.key === 'lock_hour' && val >= 0 && val <= 23) LOCK_HOUR = val;
+      if(row.key === 'close_day' && val >= 0 && val <= 6) CLOSE_DAY = val;
+      if(row.key === 'close_hour' && val >= 0 && val <= 23) CLOSE_HOUR = val;
     });
   }catch(e){
     console.error('Load settings error', e);
@@ -1390,6 +1421,14 @@ async function loadSettings(){
   if(dampingEl) dampingEl.value = Math.round(DAMPING*100);
   const carryoverEl = document.getElementById('carryoverInput');
   if(carryoverEl) carryoverEl.value = CARRYOVER_PCT;
+  const lockDayEl = document.getElementById('lockDaySelect');
+  if(lockDayEl) lockDayEl.value = String(LOCK_DAY);
+  const lockHourEl = document.getElementById('lockHourInput');
+  if(lockHourEl) lockHourEl.value = LOCK_HOUR;
+  const closeDayEl = document.getElementById('closeDaySelect');
+  if(closeDayEl) closeDayEl.value = String(CLOSE_DAY);
+  const closeHourEl = document.getElementById('closeHourInput');
+  if(closeHourEl) closeHourEl.value = CLOSE_HOUR;
 
   renderSeedsTable();
 }
@@ -1403,6 +1442,12 @@ async function saveDamping(value){
 async function saveCarryover(value){
   try{
     const {error} = await db.rpc('sc_set_setting', {p_secret: ADMIN_SECRET, p_key: 'carryover_pct', p_value: String(value)});
+    if(error) throw error;
+  }catch(e){ console.error('Save error', e); alert('Could not save — admin session may have expired.'); }
+}
+async function saveLockSetting(key, value){
+  try{
+    const {error} = await db.rpc('sc_set_setting', {p_secret: ADMIN_SECRET, p_key: key, p_value: String(value)});
     if(error) throw error;
   }catch(e){ console.error('Save error', e); alert('Could not save — admin session may have expired.'); }
 }
@@ -1436,6 +1481,35 @@ if(carryoverInput) carryoverInput.addEventListener('change', async ()=>{
   CARRYOVER_PCT = val;
   await saveCarryover(val);
   renderSeedsTable();
+  render();
+});
+
+const lockDaySelect = document.getElementById('lockDaySelect');
+if(lockDaySelect) lockDaySelect.addEventListener('change', async ()=>{
+  LOCK_DAY = parseInt(lockDaySelect.value, 10);
+  await saveLockSetting('lock_day', LOCK_DAY);
+  render();
+});
+const lockHourInput = document.getElementById('lockHourInput');
+if(lockHourInput) lockHourInput.addEventListener('change', async ()=>{
+  const val = parseInt(lockHourInput.value, 10);
+  if(isNaN(val) || val < 0 || val > 23){ lockHourInput.value = LOCK_HOUR; return; }
+  LOCK_HOUR = val;
+  await saveLockSetting('lock_hour', val);
+  render();
+});
+const closeDaySelect = document.getElementById('closeDaySelect');
+if(closeDaySelect) closeDaySelect.addEventListener('change', async ()=>{
+  CLOSE_DAY = parseInt(closeDaySelect.value, 10);
+  await saveLockSetting('close_day', CLOSE_DAY);
+  render();
+});
+const closeHourInput = document.getElementById('closeHourInput');
+if(closeHourInput) closeHourInput.addEventListener('change', async ()=>{
+  const val = parseInt(closeHourInput.value, 10);
+  if(isNaN(val) || val < 0 || val > 23){ closeHourInput.value = CLOSE_HOUR; return; }
+  CLOSE_HOUR = val;
+  await saveLockSetting('close_hour', val);
   render();
 });
 
@@ -1652,6 +1726,10 @@ function computeStandings(gamesList){
 
 let DAMPING = 0.10; // recency damping on strength bonus (0-1) — prevents ratings from compounding out of control
 let CARRYOVER_PCT = 50; // % of 2025 final rating carried into Week 1 2026
+let LOCK_DAY = 3; // day-of-week (0=Sun..6=Sat) a week's picks lock, ET — default Wednesday
+let LOCK_HOUR = 0; // hour (0-23, ET) on LOCK_DAY
+let CLOSE_DAY = 1; // day-of-week a week is considered fully closed, ET — default Monday
+let CLOSE_HOUR = 0; // hour (0-23, ET) on CLOSE_DAY
 let ADJUSTMENTS = {}; // per-team manual offseason adjustment, code -> points
 
 // Angle sheet: situational point adjustments, gamed out and reduced to the key
@@ -1760,6 +1838,48 @@ function kickoffPassed(week, away, home){
   const offset = (monthIdx === 10 || monthIdx === 11 || monthIdx === 0) ? '-05:00' : '-04:00';
   const kickoffInstant = new Date(`${dateISO}T${time}:00${offset}`);
   return new Date() >= kickoffInstant;
+}
+// Earliest known kickoff date for a week — used to anchor the week-level lock cutoff so it
+// doesn't need to be hand-set per week. Returns null if every game that week is still TBD.
+function weekEarliestDate(week){
+  let earliest = null;
+  SCHEDULE.filter(([w])=>w===week).forEach(([w,a,h])=>{
+    const gt = GAME_TIMES[`${w}|${a}|${h}`];
+    if(gt && (!earliest || gt[0] < earliest)) earliest = gt[0];
+  });
+  return earliest;
+}
+// The most recent occurrence of a given weekday on or before a reference date (both UTC-anchored).
+function mostRecentWeekday(dateISO, targetDow){
+  const d = new Date(dateISO+'T00:00:00Z');
+  const diff = (d.getUTCDay() - targetDow + 7) % 7;
+  d.setUTCDate(d.getUTCDate() - diff);
+  return d;
+}
+function etOffsetForMonth(monthIdx){
+  return (monthIdx === 10 || monthIdx === 11 || monthIdx === 0) ? '-05:00' : '-04:00';
+}
+// The whole week locks at once (default: the Wednesday before its earliest game, midnight ET) —
+// admin-configurable in Angles > Pick Lock Schedule. This is what actually keeps SOS vs. a human
+// player fair: nobody, including SOS, can see how any game in the week went before finalizing
+// their picks for the rest of it.
+function weekLockInstant(week){
+  const earliestDate = weekEarliestDate(week);
+  if(!earliestDate) return null; // can't anchor a lock time until at least one game that week has a real date
+  const lockDate = mostRecentWeekday(earliestDate, LOCK_DAY);
+  const offset = etOffsetForMonth(lockDate.getUTCMonth());
+  const hh = String(LOCK_HOUR).padStart(2,'0');
+  return new Date(`${lockDate.toISOString().slice(0,10)}T${hh}:00:00${offset}`);
+}
+function weekLockPassed(week){
+  const inst = weekLockInstant(week);
+  if(!inst) return false;
+  return new Date() >= inst;
+}
+// A specific game is locked once either its own kickoff has passed, or the whole week has locked —
+// the week-level lock is what actually fires first in normal use; per-game kickoff is a backstop.
+function gameLocked(week, away, home){
+  return weekLockPassed(week) || kickoffPassed(week, away, home);
 }
 async function adjustBet(week, team, opp, delta){
   const current = betAmount(week, team);
@@ -2390,7 +2510,7 @@ function renderUpcoming(){
     // must always have money on exactly one team; adjustBet's decrement-flip enforces that once a
     // bet has been started, but a game nobody has touched yet (e.g. a skipped pick-'em) can still
     // sit at $0/$0 — flag that clearly rather than let it slip through unbet.
-    const locked = kickoffPassed(w, away, home);
+    const locked = gameLocked(w, away, home);
     const unfunded = !locked && betAmount(w, home) === 0 && betAmount(w, away) === 0;
     const stepper = (team, opp) => {
       const amt = betAmount(w, team);
