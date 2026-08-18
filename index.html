@@ -592,6 +592,15 @@
   }
   .card-mockup .hdr{background:#FDF6DC;font-weight:700;}
 
+  .pool-stats-sticky{
+    position:sticky;
+    top:0;
+    z-index:50;
+    background:var(--panel);
+    padding:8px 0;
+    margin:0 0 6px;
+  }
+
   /* Pool / betting */
   .pool-table{
     width:100%;
@@ -1006,7 +1015,7 @@
           </table>
         </div>
       </details>
-      <div id="poolStatsBar" style="display:none;"></div>
+      <div id="poolStatsBar" class="pool-stats-sticky" style="display:none;"></div>
       <div id="upcomingWrap"><div class="empty">Loading...</div></div>
     </div>
   </div>
