@@ -459,6 +459,94 @@
     text-transform:none;
   }
 
+  /* Team detail modal */
+  .rh-team-cell, .standings-div-code, .sb-code{ cursor:pointer; }
+  .team-modal-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(20,18,14,.55);
+    z-index:200;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding:40px 16px;
+    overflow-y:auto;
+  }
+  .team-modal{
+    background:var(--panel);
+    border-radius:14px;
+    max-width:480px;
+    width:100%;
+    padding:20px;
+    position:relative;
+    box-shadow:0 20px 60px rgba(0,0,0,.3);
+  }
+  .team-modal-close{
+    position:absolute;
+    top:12px; right:12px;
+    width:30px; height:30px;
+    border-radius:50%;
+    border:1px solid var(--line);
+    background:#fff;
+    font-size:18px;
+    line-height:1;
+    cursor:pointer;
+    color:var(--muted);
+  }
+  .team-modal-header{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    margin-bottom:16px;
+    padding-right:30px;
+  }
+  .team-modal-code{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:22px;
+    font-weight:700;
+    background:#F4F1E8;
+    border-radius:8px;
+    padding:8px 12px;
+  }
+  .team-modal-name{font-size:17px;font-weight:700;color:var(--text);}
+  .team-modal-sub{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    margin-top:2px;
+  }
+  .team-modal-table{width:100%;border-collapse:collapse;font-size:12px;}
+  .team-modal-table th{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9.5px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    color:var(--muted);
+    text-align:left;
+    padding:4px 6px;
+    border-bottom:1px solid var(--line);
+  }
+  .team-modal-table td{
+    padding:7px 6px;
+    border-bottom:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .team-modal-outcome{
+    display:inline-block;
+    width:16px;height:16px;
+    border-radius:50%;
+    text-align:center;
+    line-height:16px;
+    font-size:10px;
+    font-weight:700;
+    color:#fff;
+    margin-right:4px;
+  }
+  .team-modal-outcome.win{background:#1E7A3D;}
+  .team-modal-outcome.loss{background:var(--loss-red);}
+  .team-modal-outcome.tie{background:var(--muted);}
+  .team-modal-proj{color:var(--muted);}
+
   /* Instructions accordion */
   .instructions-accordion{
     border:1px solid var(--line);
@@ -1042,6 +1130,13 @@
 
 </div>
 
+<div id="teamModalOverlay" class="team-modal-overlay" style="display:none;">
+  <div class="team-modal">
+    <button class="team-modal-close" id="teamModalClose" aria-label="Close">×</button>
+    <div id="teamModalContent"></div>
+  </div>
+</div>
+
 <script>
 const TEAMS = [
   ["BUF","Buffalo Bills"],["MIA","Miami Dolphins"],["NE","New England Patriots"],["NYJ","New York Jets"],
@@ -1432,6 +1527,73 @@ function resultOf(g){
   if(g.awayScore > g.homeScore) return 'away';
   if(g.awayScore < g.homeScore) return 'home';
   return 'tie';
+}
+
+// Team detail modal: full season schedule for one team — played games show the final score and
+// W/L/T, games not yet played show our current projected spread instead.
+function renderTeamModal(code){
+  const {weeklyTotals} = computeStandings(games);
+  const latestTotals = weeklyTotals[weeklyTotals.length-1] || weeklyTotals[0];
+  const ranks = getRankMap(latestTotals);
+  const sched = SCHEDULE.filter(([,a,h]) => a === code || h === code).sort((x,y)=> x[0]-y[0]);
+
+  let w=0, l=0, t=0;
+  const rows = sched.map(([week, a, h])=>{
+    const isHome = h === code;
+    const opp = isHome ? a : h;
+    const kickoff = formatKickoff(week, a, h);
+    const dateLabel = kickoff ? kickoff.dateLabel : 'TBD';
+    const played = games.find(g => g.week === week && g.away === a && g.home === h);
+    let resultHtml;
+    if(played){
+      const result = resultOf(played);
+      const teamScore = isHome ? played.homeScore : played.awayScore;
+      const oppScore = isHome ? played.awayScore : played.homeScore;
+      const won = (result === 'home' && isHome) || (result === 'away' && !isHome);
+      const outcome = result === 'tie' ? 'T' : (won ? 'W' : 'L');
+      if(outcome === 'W') w++; else if(outcome === 'L') l++; else t++;
+      const cls = outcome === 'W' ? 'win' : outcome === 'L' ? 'loss' : 'tie';
+      resultHtml = `<span class="team-modal-outcome ${cls}">${outcome}</span>${teamScore}-${oppScore}`;
+    } else {
+      const sp = computeSpread(a, h, latestTotals, week);
+      const marginText = sp.margin % 1 === 0 ? sp.margin.toFixed(0) : sp.margin.toFixed(1);
+      resultHtml = sp.margin === 0
+        ? `<span class="team-modal-proj">PK</span>`
+        : `<span class="team-modal-proj">${sp.favorite === code ? '-' : '+'}${marginText}</span>`;
+    }
+    return `<tr><td>Wk ${week}</td><td>${isHome ? 'vs' : '@'} ${opp}</td><td>${dateLabel}</td><td>${resultHtml}</td></tr>`;
+  }).join('');
+
+  const rank = ranks[code];
+  const sos = (latestTotals[code] ?? 0).toFixed(1);
+  const div = DIVISION_ABBR[TEAM_DIVISION[code]] || '';
+  const field = fieldTypeFor(code);
+
+  return `
+    <div class="team-modal-header">
+      <div class="team-modal-code">${code}</div>
+      <div>
+        <div class="team-modal-name">${TEAM_NAME[code]}</div>
+        <div class="team-modal-sub">${div} · ${field} · Rank #${rank} · ${sos} SOS pts · ${w}-${l}${t ? `-${t}` : ''}</div>
+      </div>
+    </div>
+    <table class="team-modal-table">
+      <thead><tr><th>Week</th><th>Opponent</th><th>Date</th><th>Result</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+function openTeamModal(code){
+  if(!TEAM_NAME[code]) return;
+  const overlay = document.getElementById('teamModalOverlay');
+  const content = document.getElementById('teamModalContent');
+  if(!overlay || !content) return;
+  content.innerHTML = renderTeamModal(code);
+  overlay.style.display = 'flex';
+}
+function closeTeamModal(){
+  const overlay = document.getElementById('teamModalOverlay');
+  if(overlay) overlay.style.display = 'none';
 }
 
 function getSeedTotals(){
@@ -1986,7 +2148,7 @@ function renderStandings(){
   const sosCell = r => `<span class="standings-sos">${r.sos.toFixed(1)}</span>`;
   const row = r => `
     <div class="standings-row">
-      <div class="standings-div-code">${r.code}</div>
+      <div class="standings-div-code" data-team="${r.code}">${r.code}</div>
       <div>${r.name}</div>
       ${recordCell(r)}
       ${sosCell(r)}
@@ -2138,7 +2300,7 @@ function renderRankHistory(){
       if(rank != null) prev = rank;
     }
     const rowClass = idx % 2 === 1 ? ' class="rh-row-even"' : '';
-    return `<tr${rowClass}><td class="rh-team-cell">${r.code}</td>${cells.join('')}</tr>`;
+    return `<tr${rowClass}><td class="rh-team-cell" data-team="${r.code}">${r.code}</td>${cells.join('')}</tr>`;
   }).join('');
 
   wrap.innerHTML = `<table class="rh-table"><thead>${header}</thead><tbody>${body}</tbody></table>`;
@@ -2243,12 +2405,12 @@ function renderUpcoming(){
           ${unfunded ? `<div class="bet-warning">⚠ No bet placed on this game yet</div>` : ''}
         </div>
         <div class="pick-option ${homeClass}">
-          <span class="sb-code">${homeSOS}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]}) <span class="sb-div">${homeDiv} · ${homeFieldType}</span></span>
+          <span class="sb-code" data-team="${home}">${homeSOS}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]}) <span class="sb-div">${homeDiv} · ${homeFieldType}</span></span>
           <span class="pick-line">${homeLine}</span>
           ${homeRight}
         </div>
         <div class="pick-option ${awayClass}">
-          <span class="sb-code">${awaySOS}</span><span class="sb-name">${TEAM_NAME[away]} (${ranks[away]}) <span class="sb-div">${awayDiv} · ${awayFieldType}</span></span>
+          <span class="sb-code" data-team="${away}">${awaySOS}</span><span class="sb-name">${TEAM_NAME[away]} (${ranks[away]}) <span class="sb-div">${awayDiv} · ${awayFieldType}</span></span>
           <span class="pick-line">${awayLine}</span>
           ${awayRight}
         </div>
@@ -2391,6 +2553,20 @@ if(angleResetBtn) angleResetBtn.addEventListener('click', ()=>{
   ANGLE_DEFAULTS.forEach(a=>{ USER_ANGLES[a.id] = effectiveDefault(a.id); });
   saveUserAngles();
   renderAngles();
+});
+
+document.body.addEventListener('click', (e)=>{
+  const el = e.target.closest('[data-team]');
+  if(el) openTeamModal(el.dataset.team);
+});
+const teamModalClose = document.getElementById('teamModalClose');
+if(teamModalClose) teamModalClose.addEventListener('click', closeTeamModal);
+const teamModalOverlay = document.getElementById('teamModalOverlay');
+if(teamModalOverlay) teamModalOverlay.addEventListener('click', (e)=>{
+  if(e.target === teamModalOverlay) closeTeamModal();
+});
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape') closeTeamModal();
 });
 
 loadSettings().then(loadGames);
