@@ -1015,6 +1015,7 @@
     <button class="tab-btn admin-tab" data-tab="addresult" style="display:none;">Add Result</button>
     <button class="tab-btn admin-tab" data-tab="seeds" style="display:none;">Seeds</button>
     <button class="tab-btn admin-tab" data-tab="log" style="display:none;">Log</button>
+    <button class="tab-btn admin-tab" data-tab="share" style="display:none;">Share</button>
   </div>
 
   <div class="tab-panel" id="tab-about">
@@ -1254,6 +1255,20 @@
       </div>
       <div id="logWrap"><div class="empty">No games yet — add one above.</div></div>
       <button class="btn btn-ghost" id="resetBtn" style="margin-top:16px;">Clear all data</button>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-share">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Share Report</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="panel-sub">For social media — no bet amounts shown</div>
+          <select id="shareWeekSelect" style="width:auto;min-height:36px;padding:6px 10px;font-size:12px;"></select>
+        </div>
+      </div>
+      <button class="btn" id="shareCopyBtn" style="margin-bottom:16px;">Copy as Text</button>
+      <div id="shareReportWrap"></div>
     </div>
   </div>
 
@@ -2558,7 +2573,7 @@ function setMode(newMode){
     modeBtn.textContent = 'Admin';
     modeBtn.classList.remove('active');
     adminTabs.forEach(t => t.style.display = 'none');
-    if(['addresult','seeds','log'].includes(currentTab)){
+    if(['addresult','seeds','log','share'].includes(currentTab)){
       switchTab('rankings');
     }
   }
@@ -2936,6 +2951,102 @@ function renderUpcoming(){
   if(betsLoaded) seedWeekWithFavorites(picksWeek);
 }
 
+let shareWeek = null; // selected week for the Share Report tab; null = not yet auto-detected
+
+function renderShareReport(){
+  const wrap = document.getElementById('shareReportWrap');
+  if(!wrap) return;
+  const {weeklyTotals} = computeStandings(games);
+  const latestTotals = weeklyTotals[weeklyTotals.length-1] || weeklyTotals[0];
+
+  if(shareWeek == null) shareWeek = picksWeek || 1;
+  const sel = document.getElementById('shareWeekSelect');
+  if(sel){
+    if(!sel.innerHTML){
+      sel.innerHTML = Array.from({length:18}, (_,i)=>`<option value="${i+1}">Week ${i+1}</option>`).join('');
+    }
+    sel.value = shareWeek;
+  }
+
+  const weekGamesRaw = scheduledGamesForWeek(shareWeek);
+  if(weekGamesRaw.length === 0){
+    wrap.innerHTML = `<div class="empty">No games scheduled for Week ${shareWeek}.</div>`;
+    return;
+  }
+  const weekGames = sortWeekGames(weekGamesRaw);
+  const ranks = getRankMap(latestTotals);
+  let tbdHeaderShown = false;
+  let gameNum = 0;
+
+  wrap.innerHTML = weekGames.map(([w,away,home])=>{
+    gameNum++;
+    const sp = computeSpread(away, home, latestTotals, w);
+    const isPush = sp.margin === 0;
+    const marginText = sp.margin % 1 === 0 ? sp.margin.toFixed(0) : sp.margin.toFixed(1);
+    const awayLine = isPush ? 'PK' : (sp.favorite === away ? `-${marginText}` : `+${marginText}`);
+    const homeLine = isPush ? 'PK' : (sp.favorite === home ? `-${marginText}` : `+${marginText}`);
+    const homeClass = isPush ? 'push' : 'home-row';
+    const awayClass = isPush ? 'push' : '';
+    const kickoff = formatKickoff(w, away, home);
+    let tbdHeader = '';
+    if(!kickoff && !tbdHeaderShown){
+      tbdHeader = `<div class="sb-week">Times TBD</div>`;
+      tbdHeaderShown = true;
+    }
+    const headerLine1 = kickoff ? `Game ${gameNum}:  ${kickoff.dateLabel} · ${kickoff.etStr}` : `Game ${gameNum}`;
+    const headerLine2 = kickoff ? (kickoff.localStr ? `${kickoff.fieldType}: ${kickoff.localStr}` : kickoff.fieldType) : '';
+    const homeFieldType = fieldTypeFor(home);
+    const awayFieldType = fieldTypeFor(away);
+    const homeDiv = DIVISION_ABBR[TEAM_DIVISION[home]] || '';
+    const awayDiv = DIVISION_ABBR[TEAM_DIVISION[away]] || '';
+    const homeSOS = (latestTotals[home] ?? 0).toFixed(1);
+    const awaySOS = (latestTotals[away] ?? 0).toFixed(1);
+
+    return `
+      ${tbdHeader}
+      <div class="sb-game">
+        <div class="sb-game-header">
+          <div>${headerLine1}</div>
+          ${headerLine2 ? `<div>${headerLine2}</div>` : ''}
+        </div>
+        <div class="pick-option ${homeClass}">
+          <span class="sb-code">${homeSOS}</span><span class="sb-name">${TEAM_NAME[home]} (${ranks[home]}) <span class="sb-div">${homeDiv} · ${homeFieldType}</span></span>
+          <span class="pick-line">${homeLine}</span>
+        </div>
+        <div class="pick-option ${awayClass}">
+          <span class="sb-code">${awaySOS}</span><span class="sb-name">${TEAM_NAME[away]} (${ranks[away]}) <span class="sb-div">${awayDiv} · ${awayFieldType}</span></span>
+          <span class="pick-line">${awayLine}</span>
+        </div>
+      </div>
+    `;
+  }).join('') + `<div class="footnote" style="text-align:center;">Courtesy of sos.football</div>`;
+}
+
+function buildShareReportText(){
+  const {weeklyTotals} = computeStandings(games);
+  const latestTotals = weeklyTotals[weeklyTotals.length-1] || weeklyTotals[0];
+  const weekGamesRaw = scheduledGamesForWeek(shareWeek);
+  const weekGames = sortWeekGames(weekGamesRaw);
+  const ranks = getRankMap(latestTotals);
+  let gameNum = 0;
+  const lines = [`Week ${shareWeek} NFL Picks`, ''];
+  weekGames.forEach(([w,away,home])=>{
+    gameNum++;
+    const sp = computeSpread(away, home, latestTotals, w);
+    const isPush = sp.margin === 0;
+    const marginText = sp.margin % 1 === 0 ? sp.margin.toFixed(0) : sp.margin.toFixed(1);
+    const awayLine = isPush ? 'PK' : (sp.favorite === away ? `-${marginText}` : `+${marginText}`);
+    const homeLine = isPush ? 'PK' : (sp.favorite === home ? `-${marginText}` : `+${marginText}`);
+    const kickoff = formatKickoff(w, away, home);
+    lines.push(`Game ${gameNum}${kickoff ? `: ${kickoff.dateLabel} · ${kickoff.etStr}` : ''}`);
+    lines.push(`${TEAM_NAME[home]} (${ranks[home]}) ${homeLine}`);
+    lines.push(`${TEAM_NAME[away]} (${ranks[away]}) ${awayLine}`);
+    lines.push('');
+  });
+  lines.push('Courtesy of sos.football');
+  return lines.join('\n');
+}
+
 function render(){
   computeStandings(games);
 
@@ -2944,6 +3055,7 @@ function render(){
   renderRankHistory();
   renderStandings();
   renderLeaderboard();
+  renderShareReport();
 
   // Game log (admin)
   const logWrap = document.getElementById('logWrap');
@@ -2983,6 +3095,25 @@ const picksWeekSelect = document.getElementById('picksWeekSelect');
 if(picksWeekSelect) picksWeekSelect.addEventListener('change', ()=>{
   picksWeek = parseInt(picksWeekSelect.value, 10);
   renderUpcoming();
+});
+
+const shareWeekSelect = document.getElementById('shareWeekSelect');
+if(shareWeekSelect) shareWeekSelect.addEventListener('change', ()=>{
+  shareWeek = parseInt(shareWeekSelect.value, 10);
+  renderShareReport();
+});
+const shareCopyBtn = document.getElementById('shareCopyBtn');
+if(shareCopyBtn) shareCopyBtn.addEventListener('click', async ()=>{
+  const text = buildShareReportText();
+  try{
+    await navigator.clipboard.writeText(text);
+    const original = shareCopyBtn.textContent;
+    shareCopyBtn.textContent = 'Copied!';
+    setTimeout(()=>{ shareCopyBtn.textContent = original; }, 1500);
+  }catch(e){
+    console.error('Clipboard error', e);
+    alert('Could not copy automatically — select and copy the text below manually.');
+  }
 });
 
 const scoreboardWeekSelect = document.getElementById('scoreboardWeekSelect');
