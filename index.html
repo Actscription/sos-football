@@ -1472,8 +1472,8 @@ function renderAuthUI(){
       </div>
     `;
     document.getElementById('authClaimBtn').addEventListener('click', async ()=>{
-      authFormBusy = true; authFormError=''; renderAuthUI();
       const username = document.getElementById('authUsernameInput').value;
+      authFormBusy = true; authFormError=''; renderAuthUI();
       const result = await claimUsername(username);
       authFormBusy = false;
       if(!result.success){ authFormError = result.error; renderAuthUI(); return; }
