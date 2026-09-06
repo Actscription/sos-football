@@ -401,6 +401,86 @@
     -webkit-tap-highlight-color:transparent;
   }
   .mode-btn:hover{color:var(--text);border-color:var(--muted);}
+  .auth-bar{
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:10px;
+    padding:8px 16px;
+    border-bottom:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    flex-wrap:wrap;
+  }
+  .auth-bar .auth-username{color:var(--text);font-weight:600;}
+  .auth-link{
+    background:none;
+    border:none;
+    color:#1E7A3D;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    cursor:pointer;
+    text-decoration:underline;
+    padding:4px 2px;
+  }
+  .auth-link.muted{color:var(--muted);}
+  .auth-panel{
+    width:100%;
+    max-width:340px;
+    margin-left:auto;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px;
+    margin-top:8px;
+  }
+  .auth-panel input{
+    width:100%;
+    padding:10px 10px;
+    margin-bottom:8px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    font-size:14px;
+    box-sizing:border-box;
+  }
+  .auth-panel .auth-err{color:#B3261E;font-size:12px;margin-bottom:8px;}
+  .auth-panel .auth-msg{color:#1E7A3D;font-size:12px;margin-bottom:8px;}
+  .auth-panel-btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .auth-submit-btn{
+    background:#1E7A3D;
+    color:#fff;
+    border:none;
+    border-radius:8px;
+    padding:10px 16px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .auth-submit-btn:disabled{opacity:.6;cursor:not-allowed;}
+  .bet-signin-prompt{
+    text-align:center;
+    padding:10px 12px;
+    background:var(--panel-2);
+    border:1px dashed var(--line);
+    border-radius:8px;
+    font-size:12px;
+    color:var(--muted);
+    margin:8px 0;
+  }
+  .leaderboard-row{
+    display:grid;
+    grid-template-columns:32px 1fr 90px;
+    align-items:center;
+    gap:8px;
+    padding:10px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .leaderboard-row:last-child{border-bottom:none;}
+  .leaderboard-rank{font-family:'IBM Plex Mono',monospace;color:var(--muted);font-size:13px;}
+  .leaderboard-name{font-weight:600;color:var(--text);}
+  .leaderboard-name.is-sos{color:#1E7A3D;}
+  .leaderboard-bank{text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600;}
+  .leaderboard-you-tag{font-size:10px;color:#1E7A3D;font-weight:600;margin-left:6px;text-transform:uppercase;letter-spacing:.04em;}
   .mode-btn:active{transform:scale(0.97);}
   .mode-btn.active{
     background:var(--text);
@@ -922,9 +1002,12 @@
     <button class="mode-btn" id="modeBtn">Admin</button>
   </div>
 
+  <div class="auth-bar" id="authBar"></div>
+
   <div class="tab-bar" id="tabBar">
     <button class="tab-btn active" data-tab="rankings">Rankings</button>
     <button class="tab-btn" data-tab="spreads">Picks</button>
+    <button class="tab-btn" data-tab="leaderboard">Leaderboard</button>
     <button class="tab-btn" data-tab="scoreboard">Scoreboard</button>
     <button class="tab-btn" data-tab="standings">Standings</button>
     <button class="tab-btn" data-tab="angles">Angles</button>
@@ -1017,6 +1100,16 @@
       </details>
       <div id="poolStatsBar" class="pool-stats-sticky" style="display:none;"></div>
       <div id="upcomingWrap"><div class="empty">Loading...</div></div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-leaderboard">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Leaderboard</div>
+        <div class="panel-sub">Season Bank, every player vs. SOS</div>
+      </div>
+      <div id="leaderboardWrap"><div class="empty">Loading...</div></div>
     </div>
   </div>
 
@@ -1278,6 +1371,174 @@ let ADMIN_SECRET = null; // only held in memory after a verified PIN entry — n
 const SUPABASE_URL = 'https://hubgdpaowrvzbjyvgzxm.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_asjorgsEN9-8KDG3PwvBpA_wyeoL7En';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// --- Player accounts (independent from Giddyup Silks' own login, same Supabase project) ---
+let currentSession = null;   // Supabase auth session, or null when signed out
+let currentPlayer = null;    // {id, username} row from sc_profiles, or null
+let ALL_PROFILES = [];       // every registered username, for the leaderboard
+let authFormMode = null;     // null | 'signin' | 'register' -- which form the auth panel shows
+let authFormError = '';
+let authFormMsg = '';
+let authFormBusy = false;
+
+async function loadProfiles(){
+  try{
+    const {data, error} = await db.from('sc_profiles').select('*');
+    if(error) throw error;
+    ALL_PROFILES = data || [];
+  }catch(e){ console.error('Load profiles error', e); }
+}
+async function loadMyProfile(userId){
+  try{
+    const {data, error} = await db.from('sc_profiles').select('*').eq('id', userId).maybeSingle();
+    if(error) throw error;
+    return data;
+  }catch(e){ console.error('Load profile error', e); return null; }
+}
+async function initAuth(){
+  const {data} = await db.auth.getSession();
+  currentSession = data.session;
+  if(currentSession) currentPlayer = await loadMyProfile(currentSession.user.id);
+  await loadProfiles();
+  renderAuthUI();
+  db.auth.onAuthStateChange(async (_event, session) => {
+    currentSession = session;
+    currentPlayer = session ? await loadMyProfile(session.user.id) : null;
+    await loadProfiles();
+    renderAuthUI();
+    renderUpcoming();
+    renderLeaderboard();
+  });
+}
+async function registerPlayer(email, password){
+  const {data, error} = await db.auth.signUp({email, password});
+  if(error) return {success:false, error: error.message};
+  currentSession = data.session; // null if this project requires email confirmation
+  return {success:true, needsConfirmation: !data.session};
+}
+async function loginPlayer(email, password){
+  const {data, error} = await db.auth.signInWithPassword({email, password});
+  if(error) return {success:false, error: error.message};
+  currentSession = data.session;
+  currentPlayer = await loadMyProfile(data.user.id);
+  await loadProfiles();
+  return {success:true};
+}
+async function claimUsername(username){
+  username = (username || '').trim();
+  if(!username) return {success:false, error:'Pick a username.'};
+  if(username.toLowerCase() === 'sos') return {success:false, error:'"SOS" is reserved for the app itself -- pick another username.'};
+  if(!currentSession) return {success:false, error:'Session expired -- sign in again.'};
+  const {error} = await db.from('sc_profiles').insert({id: currentSession.user.id, username});
+  if(error) return {success:false, error: /duplicate|unique/i.test(error.message) ? 'That username is already taken.' : error.message};
+  currentPlayer = await loadMyProfile(currentSession.user.id);
+  await loadProfiles();
+  return {success:true};
+}
+async function logoutPlayer(){
+  await db.auth.signOut();
+  currentSession = null;
+  currentPlayer = null;
+  renderAuthUI();
+  renderUpcoming();
+  renderLeaderboard();
+}
+
+function renderAuthUI(){
+  const bar = document.getElementById('authBar');
+  if(!bar) return;
+
+  // Signed in with a claimed username -- the normal steady state.
+  if(currentSession && currentPlayer){
+    bar.innerHTML = `
+      <span class="auth-username">@${currentPlayer.username}</span>
+      <button type="button" class="auth-link muted" id="authSignOutBtn">Sign Out</button>
+    `;
+    document.getElementById('authSignOutBtn').addEventListener('click', logoutPlayer);
+    return;
+  }
+
+  // Signed in (session exists, e.g. after email confirmation) but no username claimed yet.
+  if(currentSession && !currentPlayer){
+    bar.innerHTML = `
+      <div class="auth-panel" style="margin-top:0;">
+        <div style="margin-bottom:8px;font-size:13px;">One last step -- pick a username to finish setting up your account.</div>
+        ${authFormError ? `<div class="auth-err">${authFormError}</div>` : ''}
+        <input type="text" id="authUsernameInput" placeholder="Username" maxlength="20">
+        <div class="auth-panel-btns">
+          <button type="button" class="auth-submit-btn" id="authClaimBtn" ${authFormBusy?'disabled':''}>${authFormBusy?'Saving...':'Save Username'}</button>
+          <button type="button" class="auth-link muted" id="authSignOutBtn2">Sign Out</button>
+        </div>
+      </div>
+    `;
+    document.getElementById('authClaimBtn').addEventListener('click', async ()=>{
+      authFormBusy = true; authFormError=''; renderAuthUI();
+      const username = document.getElementById('authUsernameInput').value;
+      const result = await claimUsername(username);
+      authFormBusy = false;
+      if(!result.success){ authFormError = result.error; renderAuthUI(); return; }
+      authFormError = ''; renderAuthUI(); renderUpcoming(); renderLeaderboard();
+    });
+    document.getElementById('authSignOutBtn2').addEventListener('click', logoutPlayer);
+    return;
+  }
+
+  // Signed out entirely.
+  if(!authFormMode){
+    bar.innerHTML = `
+      <button type="button" class="auth-link" id="authShowSignIn">Sign In</button>
+      <button type="button" class="auth-link" id="authShowRegister">Register</button>
+    `;
+    document.getElementById('authShowSignIn').addEventListener('click', ()=>{ authFormMode='signin'; authFormError=''; authFormMsg=''; renderAuthUI(); });
+    document.getElementById('authShowRegister').addEventListener('click', ()=>{ authFormMode='register'; authFormError=''; authFormMsg=''; renderAuthUI(); });
+    return;
+  }
+
+  const isRegister = authFormMode === 'register';
+  bar.innerHTML = `
+    <div class="auth-panel">
+      <div style="margin-bottom:8px;font-size:13px;font-weight:600;">${isRegister ? 'Create your account' : 'Sign in'}</div>
+      ${authFormError ? `<div class="auth-err">${authFormError}</div>` : ''}
+      ${authFormMsg ? `<div class="auth-msg">${authFormMsg}</div>` : ''}
+      <input type="email" id="authEmailInput" placeholder="Email">
+      <input type="password" id="authPasswordInput" placeholder="${isRegister ? 'Min 8 characters' : 'Password'}">
+      <div class="auth-panel-btns">
+        <button type="button" class="auth-submit-btn" id="authSubmitBtn" ${authFormBusy?'disabled':''}>${authFormBusy?'Please wait...':(isRegister?'Create Account':'Sign In')}</button>
+        <button type="button" class="auth-link muted" id="authSwitchModeBtn">${isRegister?'Have an account? Sign in':'New here? Register'}</button>
+        <button type="button" class="auth-link muted" id="authCancelBtn">Cancel</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('authSwitchModeBtn').addEventListener('click', ()=>{
+    authFormMode = isRegister ? 'signin' : 'register'; authFormError=''; authFormMsg=''; renderAuthUI();
+  });
+  document.getElementById('authCancelBtn').addEventListener('click', ()=>{
+    authFormMode = null; authFormError=''; authFormMsg=''; renderAuthUI();
+  });
+  document.getElementById('authSubmitBtn').addEventListener('click', async ()=>{
+    const email = document.getElementById('authEmailInput').value.trim().toLowerCase();
+    const password = document.getElementById('authPasswordInput').value;
+    if(!email || !password){ authFormError = 'Email and password are both required.'; renderAuthUI(); return; }
+    authFormBusy = true; authFormError=''; authFormMsg=''; renderAuthUI();
+    if(isRegister){
+      const result = await registerPlayer(email, password);
+      authFormBusy = false;
+      if(!result.success){ authFormError = result.error; renderAuthUI(); return; }
+      if(result.needsConfirmation){
+        authFormMode = null;
+        authFormMsg = 'Check your email to confirm your account, then sign in.';
+        renderAuthUI();
+        return;
+      }
+      authFormMode = null; authFormMsg=''; renderAuthUI(); renderUpcoming(); renderLeaderboard();
+    } else {
+      const result = await loginPlayer(email, password);
+      authFormBusy = false;
+      if(!result.success){ authFormError = result.error; renderAuthUI(); return; }
+      authFormMode = null; authFormMsg=''; renderAuthUI(); renderUpcoming(); renderLeaderboard();
+    }
+  });
+}
 
 const weekSelect = document.getElementById('week');
 for(let w=1; w<=18; w++){
@@ -1811,21 +2072,31 @@ async function loadBets(){
   try{
     const {data, error} = await db.from('sc_bets').select('*');
     if(error) throw error;
-    BETS = (data || []).map(r => ({week: r.week, team_code: r.team_code, amount: parseFloat(r.amount)}));
+    BETS = (data || []).map(r => ({week: r.week, team_code: r.team_code, amount: parseFloat(r.amount), player: r.player}));
   }catch(e){
     console.error('Load bets error', e);
     BETS = [];
   }
   betsLoaded = true;
   renderUpcoming();
+  renderLeaderboard();
 }
 
-function betAmount(week, teamCode){
-  const b = BETS.find(x => x.week === week && x.team_code === teamCode);
+// All bet math below is player-scoped -- everyone's rows live together in BETS (loaded from the
+// public-read sc_bets table), so every function here filters to a specific player, defaulting to
+// whoever's currently signed in. The leaderboard calls these with an explicit player/'SOS' instead.
+function myUsername(){ return currentPlayer ? currentPlayer.username : null; }
+function betsFor(player){ return BETS.filter(b => b.player === player); }
+function betAmount(week, teamCode, player){
+  player = player || myUsername();
+  if(!player) return 0;
+  const b = betsFor(player).find(x => x.week === week && x.team_code === teamCode);
   return b ? b.amount : 0;
 }
-function weekSpent(week){
-  return BETS.filter(b => b.week === week).reduce((s,b)=> s + b.amount, 0);
+function weekSpent(week, player){
+  player = player || myUsername();
+  if(!player) return 0;
+  return betsFor(player).filter(b => b.week === week).reduce((s,b)=> s + b.amount, 0);
 }
 // Approximate ET UTC offset for the regular season (only real transition is the EDT->EST
 // changeover around Nov 1) — good enough for a self-discipline "lock at kickoff" gate, not
@@ -1882,6 +2153,7 @@ function gameLocked(week, away, home){
   return weekLockPassed(week) || kickoffPassed(week, away, home);
 }
 async function adjustBet(week, team, opp, delta){
+  if(!currentPlayer){ alert('Sign in to place bets.'); return; }
   const current = betAmount(week, team);
   // Decrementing the last $5 off a team would leave this game with nothing bet on either side.
   // Instead of allowing that, flip the pick to the opponent at the $5 minimum — every game always
@@ -1918,9 +2190,11 @@ async function adjustBet(week, team, opp, delta){
   }
 }
 // Season-to-date winnings: sum of every graded bet (game already has a final score) that hit.
-function seasonWon(){
+function seasonWon(player){
+  player = player || myUsername();
+  if(!player) return 0;
   let total = 0;
-  BETS.forEach(b=>{
+  betsFor(player).forEach(b=>{
     const g = games.find(gm => gm.week === b.week && (gm.away === b.team_code || gm.home === b.team_code));
     if(!g) return;
     const result = resultOf(g);
@@ -1935,9 +2209,11 @@ function seasonWon(){
 // each week — genuinely at risk, same as any other bet. Since a bet is just an amount on a team
 // regardless of which dollars funded it, "reserve used in week W" is simply whatever was staked
 // beyond the $200 baseline that week — fully derivable from BETS, no separate ledger needed.
-function seasonWonBefore(week){
+function seasonWonBefore(week, player){
+  player = player || myUsername();
+  if(!player) return 0;
   let total = 0;
-  BETS.forEach(b=>{
+  betsFor(player).forEach(b=>{
     if(b.week >= week) return;
     const g = games.find(gm => gm.week === b.week && (gm.away === b.team_code || gm.home === b.team_code));
     if(!g) return;
@@ -1947,20 +2223,23 @@ function seasonWonBefore(week){
   });
   return total;
 }
-function reserveUsedInWeek(week){
-  return Math.max(0, weekSpent(week) - 200);
+function reserveUsedInWeek(week, player){
+  return Math.max(0, weekSpent(week, player) - 200);
 }
-function reserveAvailableForWeek(week){
+function reserveAvailableForWeek(week, player){
+  player = player || myUsername();
   let reserveSpentSoFar = 0;
-  for(let w = 1; w < week; w++) reserveSpentSoFar += reserveUsedInWeek(w);
-  return Math.max(0, seasonWonBefore(week) - reserveSpentSoFar);
+  for(let w = 1; w < week; w++) reserveSpentSoFar += reserveUsedInWeek(w, player);
+  return Math.max(0, seasonWonBefore(week, player) - reserveSpentSoFar);
 }
-function weeklyCap(week){
-  return 200 + Math.min(200, reserveAvailableForWeek(week));
+function weeklyCap(week, player){
+  return 200 + Math.min(200, reserveAvailableForWeek(week, player));
 }
-function weekWinningsSoFar(week){
+function weekWinningsSoFar(week, player){
+  player = player || myUsername();
+  if(!player) return 0;
   let total = 0;
-  BETS.filter(b => b.week === week).forEach(b=>{
+  betsFor(player).filter(b => b.week === week).forEach(b=>{
     const g = games.find(gm => gm.week === week && (gm.away === b.team_code || gm.home === b.team_code));
     if(!g) return;
     const result = resultOf(g);
@@ -1968,6 +2247,64 @@ function weekWinningsSoFar(week){
     if(winner === b.team_code) total += b.amount;
   });
   return total;
+}
+
+// SOS's own picks are never stored anywhere -- they're recomputed live from the spread every
+// time, the same way computeSpread itself is. That makes SOS tamper-proof by construction:
+// there's no row in the database for anyone to edit in its favor. Stakes are confidence-weighted
+// (bigger rank gap = more money on that game), roughly summing to $200/week like a real player's
+// mandatory baseline, clamped to the same $5-$40 per-game range everyone else plays under.
+function sosPicksForWeek(week, preGameTotals){
+  const weekGames = scheduledGamesForWeek(week);
+  if(weekGames.length === 0) return [];
+  const raw = weekGames.map(([w,away,home])=>{
+    const sp = computeSpread(away, home, preGameTotals, w);
+    const pick = sp.margin === 0 ? home : sp.favorite; // pick-'em -> default to home team, same as the human auto-seed
+    const weight = Math.max(sp.margin, 0.5); // pick-'ems still get a minimal allocation, never zero
+    return {week: w, team_code: pick, weight};
+  });
+  const totalWeight = raw.reduce((s,r)=>s+r.weight, 0);
+  return raw.map(r=>{
+    let amount = Math.round((200 * r.weight / totalWeight) / 5) * 5;
+    amount = Math.max(5, Math.min(40, amount));
+    return {week: r.week, team_code: r.team_code, amount};
+  });
+}
+function sosSeasonWon(){
+  const {weeklyTotals} = computeStandings(games);
+  let total = 0;
+  for(let w=1; w<=18; w++){
+    const preGameTotals = weeklyTotals[w-1] || weeklyTotals[0];
+    sosPicksForWeek(w, preGameTotals).forEach(b=>{
+      const g = games.find(gm => gm.week === b.week && (gm.away === b.team_code || gm.home === b.team_code));
+      if(!g) return;
+      const result = resultOf(g);
+      const winner = result === 'home' ? g.home : result === 'away' ? g.away : null;
+      if(winner === b.team_code) total += b.amount;
+    });
+  }
+  return total;
+}
+function renderLeaderboard(){
+  const wrap = document.getElementById('leaderboardWrap');
+  if(!wrap) return;
+  const humanRows = ALL_PROFILES.map(p => ({username: p.username, bank: seasonWon(p.username)}));
+  const rows = [...humanRows, {username: 'SOS', bank: sosSeasonWon(), isSOS: true}]
+    .sort((a,b) => b.bank - a.bank);
+  if(rows.length === 1){
+    wrap.innerHTML = `<div class="empty">No players registered yet -- be the first to sign in and pick against SOS.</div>`;
+    return;
+  }
+  wrap.innerHTML = rows.map((r, i)=>{
+    const isMe = currentPlayer && r.username === currentPlayer.username;
+    return `
+      <div class="leaderboard-row">
+        <div class="leaderboard-rank">${i+1}</div>
+        <div class="leaderboard-name ${r.isSOS?'is-sos':''}">${r.isSOS ? 'SOS (the app)' : '@'+r.username}${isMe?'<span class="leaderboard-you-tag">You</span>':''}</div>
+        <div class="leaderboard-bank">$${r.bank}</div>
+      </div>
+    `;
+  }).join('');
 }
 
 // Default starting point for a brand-new week: $5 (the mandatory minimum) on the favorite in
@@ -1978,7 +2315,7 @@ function weekWinningsSoFar(week){
 let seedingInFlight = false; // avoid overlapping seed runs across rapid re-renders
 const attemptedSeeds = new Set(); // "week|away|home" tried this session — guarantees this never retries forever
 async function seedWeekWithFavorites(week){
-  if(seedingInFlight) return;
+  if(seedingInFlight || !currentPlayer) return; // only auto-seed for a signed-in player
   const weekGames = scheduledGamesForWeek(week);
   if(weekGames.length === 0) return;
   // Check each game individually rather than gating on the whole week — this repairs any single
@@ -2511,8 +2848,9 @@ function renderUpcoming(){
     // bet has been started, but a game nobody has touched yet (e.g. a skipped pick-'em) can still
     // sit at $0/$0 — flag that clearly rather than let it slip through unbet.
     const locked = gameLocked(w, away, home);
-    const unfunded = !locked && betAmount(w, home) === 0 && betAmount(w, away) === 0;
+    const unfunded = !!currentPlayer && !locked && betAmount(w, home) === 0 && betAmount(w, away) === 0;
     const stepper = (team, opp) => {
+      if(!currentPlayer) return `<div class="bet-locked">—</div>`;
       const amt = betAmount(w, team);
       if(locked) return `<div class="bet-locked">${amt > 0 ? `$${amt} locked` : '—'}</div>`;
       return `
@@ -2555,10 +2893,15 @@ function renderUpcoming(){
   });
 
   const subLabel = document.getElementById('picksSubLabel');
-  if(subLabel) subLabel.textContent = 'Enter your bet for each game — locks at kickoff';
+  if(subLabel) subLabel.textContent = currentPlayer ? 'Enter your bet for each game — locks at kickoff' : 'Sign in above to place bets — spreads are visible to everyone';
 
   const statsBar = document.getElementById('poolStatsBar');
   if(statsBar){
+    if(!currentPlayer){
+      statsBar.style.display = 'block';
+      statsBar.innerHTML = `<div class="bet-signin-prompt">Sign in or register (top right) to start betting your $200 weekly bankroll and show up on the Leaderboard.</div>`;
+      return;
+    }
     const bank = seasonWon();
     const prevWeekWin = picksWeek > 1 ? weekWinningsSoFar(picksWeek - 1) : 0;
     const spent = weekSpent(picksWeek);
@@ -2600,6 +2943,7 @@ function render(){
   renderUpcoming();
   renderRankHistory();
   renderStandings();
+  renderLeaderboard();
 
   // Game log (admin)
   const logWrap = document.getElementById('logWrap');
@@ -2701,6 +3045,7 @@ document.addEventListener('keydown', (e)=>{
 loadSettings().then(loadGames);
 loadAngles();
 loadBets();
+initAuth();
 
 // Live sync: reload whenever anyone (admin, any device) changes the underlying data.
 db.channel('sc-live-sync')
